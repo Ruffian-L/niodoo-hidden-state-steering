@@ -37,7 +37,7 @@ claim_card.md     the witnessed-correction result, machine-checkable
 harness/          the scripts that produced the battery
 evidence/         raw model output from the runs
 niodoo/           the runtime source (Rust). The bridge is feature-gated.
-assets/           the basin registry and runtime bridge the binary loads
+niodv4/           the basin registry the binary loads, at the relative path it expects
 ```
 
 ## What this is not
@@ -49,3 +49,7 @@ true vanilla baseline. Those gaps are stated in the whitepaper, not hidden.
 
 Trust the bytes, not the names. Every model and artifact is identified by sha256. A clone that disagrees on a hash is
 telling you it is not running the published configuration.
+
+## Contact
+
+Questions, corrections, or if you think something here is wrong: jasonvanpham@niodoo.com

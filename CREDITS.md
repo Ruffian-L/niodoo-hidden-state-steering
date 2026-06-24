@@ -9,6 +9,8 @@ layers attached rather than flatten everything under one name.
 runtime, the claims ledger, the year of work, and the direction throughout. The human review that graded this result
 was his.
 
+Contact: jasonvanpham@niodoo.com
+
 ## Provenance
 
 The hidden-state steering and ontological-inversion approaches in this lineage were developed by Jason Van Pham
