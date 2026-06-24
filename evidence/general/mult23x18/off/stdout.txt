@@ -1,0 +1,32 @@
+# excerpt — full output regenerable via ../reproduce.sh or ../harness/run_battery.sh
+# (paths sanitized)
+---
+=== TURN 0 OUTPUT ===
+VISIBLE REASONING:
+To multiply 23 and 18, I will perform the following operations:
+First, I'll multiply the tens place of 18 (20) by 23: 20 × 23 = 460.
+Next, I'll multiply the ones place of 18 (8) by 23: 8 × 23 = 184.
+Now, I need to combine these products: 460 + 184 = 644.
+VISIBLE ANSWER:
+644
+REQUEST: LOCK
+[INTERNAL MONITOR: ...]
+ACTION: Discard previous thought and try a qualitatively different approach
+I'll use the distributive property to multiply 23 by 18:
+VISIBLE REASONING:
+23 × 18 = 23 × (10 + 8)
+= 23 × 10 + 23 × 8
+= 230 + 184
+= 414 + 230
+VISIBLE ANSWER:
+644
+However, I still see the [INTERNAL MONITOR: ...] warning.
+REQUEST: FOCUS
+VISIBLE REASONING:
+I'll verify the result by recalculating the original multiplication problem:
+23 × 18 = ?
+I can try
+--- telemetry summary ---
+ [MOTIF_HINGE] flipped=false organic=false recovered=false attempts=0 failures=0 organic_timing=none recovered_timing=none
+ [ROUTING] ticks=0 structured=0 structured_candidate=0 conversational=0 tie_breaks=0 structured_locks=0 escalations=0/0 wrong_basin=false improved=false
+ [HUMAN_EVAL] model_size=8b mode=agency source=model_token_embeddings turns=1 flags=organic_promoted_missing,portable_memory_thin,hinge_not_flipped

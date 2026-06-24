@@ -1,0 +1,32 @@
+# Build output
+/target
+**/target/
+*.ptx
+*.o
+*.rlib
+
+# Model weights and large binary artifacts (pinned by hash, downloaded on demand — never committed)
+*.gguf
+*.safetensors
+*.f32
+*.npy
+*.bin
+model/
+models/
+
+# Python / tooling
+__pycache__/
+*.pyc
+.venv/
+.venv-*/
+.uv-cache/
+
+# Logs and scratch
+*.log
+/tmp/
+scratch/
+
+# OS / editor junk
+.DS_Store
+*.swp
+*~

@@ -1,0 +1,17 @@
+# excerpt — full output regenerable via ../reproduce.sh or ../harness/run_battery.sh
+# (paths sanitized)
+---
+=== TURN 0 OUTPUT ===
+VISIBLE REASONING:
+Let x be the cost of the ball.
+The bat costs $1.00 more than the ball, so the bat costs x + $1.00.
+The total cost of the bat and ball is $1.10, so we can write the equation: x + (x + $1.00) = $1.10
+Simplifying the equation, we get: 2x + $1.00 = $1.10
+Subtracting $1.00 from both sides: 2x = $0.10
+Dividing both sides by 2: x = $0.05
+VISIBLE ANSWER: The ball costs $0.05.
+[REQUEST: LOCK] key=ball_cost=$0.05
+--- telemetry summary ---
+ [MOTIF_HINGE] flipped=false organic=false recovered=false attempts=0 failures=0 organic_timing=none recovered_timing=none
+ [ROUTING] ticks=0 structured=0 structured_candidate=0 conversational=0 tie_breaks=0 structured_locks=0 escalations=0/0 wrong_basin=false improved=false
+ [HUMAN_EVAL] model_size=8b mode=agency source=model_token_embeddings turns=1 flags=organic_promoted_missing,portable_memory_thin,hinge_not_flipped

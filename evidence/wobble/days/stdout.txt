@@ -1,0 +1,21 @@
+# excerpt — full output regenerable via ../reproduce.sh or ../harness/run_battery.sh
+# (paths sanitized)
+---
+=== TURN 0 OUTPUT ===
+VISIBLE REASONING:
+To solve this problem, we need to determine the day of the week a week from today (Friday, July 12) and the corresponding date.
+VISIBLE REASONING:
+A week has 7 days. We can count the days of the week to find the next day.
+VISIBLE REASONING:
+Counting from Friday: Saturday, Sunday, Monday, Tuesday, Wednesday, Thursday
+VISIBLE REASONING:
+Since we are counting 7 days from Friday, we will arrive at the same weekday. Therefore, one week from today will be Friday.
+VISIBLE REASONING:
+However, we need to find the date. One week from July 12 would be July 19.
+VISIBLE ANSWER:
+One week from today will be a Friday. The date will be July 19.
+[REQUEST: LOCK] weekday=Friday, date=July 19
+--- telemetry summary ---
+ [MOTIF_HINGE] flipped=false organic=false recovered=false attempts=0 failures=0 organic_timing=none recovered_timing=none
+ [ROUTING] ticks=0 structured=0 structured_candidate=0 conversational=0 tie_breaks=0 structured_locks=0 escalations=0/0 wrong_basin=false improved=false
+ [HUMAN_EVAL] model_size=8b mode=agency source=model_token_embeddings turns=1 flags=organic_promoted_missing,portable_memory_thin,hinge_not_flipped

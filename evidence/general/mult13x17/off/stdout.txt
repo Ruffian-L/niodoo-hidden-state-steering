@@ -1,0 +1,23 @@
+# excerpt — full output regenerable via ../reproduce.sh or ../harness/run_battery.sh
+# (paths sanitized)
+---
+=== TURN 0 OUTPUT ===
+VISIBLE REASONING:
+To multiply 13 and 17, I can break it down into 10 + 3 and 10 + 7.
+I will use the distributive property of multiplication: (a + b) * c = a * c + b * c
+So, (10 + 3) * 17 = 10 * 17 + 3 * 17
+VISIBLE ANSWER: 10 * 17 = 170
+WORKING ANSWER: 170 + 51 =
+Visible arithmetic:
+170 + 51 =
+170
++ 50
+320
++ 1
+321
+LOCK
+[REQUEST: LOCK] PRODUCT=321
+--- telemetry summary ---
+ [MOTIF_HINGE] flipped=false organic=false recovered=false attempts=0 failures=0 organic_timing=none recovered_timing=none
+ [ROUTING] ticks=0 structured=0 structured_candidate=0 conversational=0 tie_breaks=0 structured_locks=0 escalations=0/0 wrong_basin=false improved=false
+ [HUMAN_EVAL] model_size=8b mode=agency source=model_token_embeddings turns=1 flags=organic_promoted_missing,portable_memory_thin,hinge_not_flipped

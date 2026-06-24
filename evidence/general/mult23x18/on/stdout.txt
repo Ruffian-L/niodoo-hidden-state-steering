@@ -1,0 +1,16 @@
+# excerpt — full output regenerable via ../reproduce.sh or ../harness/run_battery.sh
+# (paths sanitized)
+---
+=== TURN 0 OUTPUT ===
+VISIBLE REASONING:
+To multiply 23 and 18, I will perform the following sequence:
+23 × 18 = ?
+I will start by multiplying 20 (the closest multiple of 10 to 23) by 18, which is 360. Then, I will add the product of 3 and 18 (which is 54) to the result.
+360 + 54 = 414.
+VISIBLE ANSWER: 414
+I will LOCK this answer as it is ready.
+[REQUEST: LOCK] key=result=414
+--- telemetry summary ---
+ [MOTIF_HINGE] flipped=false organic=false recovered=false attempts=0 failures=0 organic_timing=none recovered_timing=none
+ [ROUTING] ticks=0 structured=0 structured_candidate=0 conversational=0 tie_breaks=0 structured_locks=0 escalations=0/0 wrong_basin=false improved=false
+ [HUMAN_EVAL] model_size=8b mode=agency source=model_token_embeddings turns=1 flags=organic_promoted_missing,portable_memory_thin,hinge_not_flipped
