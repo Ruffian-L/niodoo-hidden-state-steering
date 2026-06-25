@@ -5,6 +5,23 @@ retrain weights. This repository contains one narrow, reproducible result and th
 
 Status: not polished, actively worked on. The result here runs end to end. The wider system does not yet.
 
+## Update — 2026-06-24: vanilla control run, and a measured regression
+
+The control this README calls missing ("the bridge-off arm is not yet a true vanilla baseline") has now been run. Raw `llama.cpp` on the same eight prompts — same model bytes (sha256-verified), greedy, temperature 0, seed 42, standard Llama-3.1 chat template — answers **8 of 8 correctly**, including the four the bridge-off arm gets wrong. On this specific deterministic-recall battery, **niodoo currently regresses relative to pure llama.cpp.**
+
+The weights are identical across both runs, so this is not the model getting worse. The cause is the context niodoo wraps around it: niodoo prepends a steering system prompt — an `INTERNAL MONITOR: double-check your reasoning, it is likely flawed` doubt-prime, plus a `[REQUEST: SPIKE/FOCUS/LOCK/...]` control protocol. On deterministic facts, where the model's high-confidence answer is already correct, that doubt-prime pushes it off the right answer (observed thrashing 3 → 2 → 3 → 4 on the r's in "strawberry"), and the 8B model imitates the control protocol — emitting `[REQUEST: LOCK]`, `[ACTION: SHUTDOWN]` — instead of answering. Per-token telemetry shows the guardrail was inactive throughout (`guardrail_active:false` every token), so the effect is the injected prompt, not the physics engine.
+
+Correction to the table below: **"raspberry" has 3 r's, not 2.** `str.count` confirms it; the replay-control row was mislabeled. Vanilla answers 3 (correct); the bridge answers 2.
+
+Scope, as measured: deterministic recall (letter-counting, integer arithmetic).
+
+Open and under test:
+- routing deterministic tasks to a deterministic answerer (`--tool-augmented`), treated as hardware diagnostics rather than the cognition target;
+- a re-run with the chat template and guardrail relief held equal across arms, so "off" is a true vanilla baseline rather than niodoo-with-the-bridge-off;
+- moving steering off the visible prompt and onto hidden-state / persisted trajectory (the TDA path), which steers without the doubt-prime that causes this.
+
+This is published here, not set aside.
+
 ## The result, in one paragraph
 
 On a frozen Llama-3.1-8B-Instruct (Q5_K_M), the model locks a wrong final answer on a class of prompts even when its

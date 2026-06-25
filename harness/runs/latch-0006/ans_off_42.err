@@ -1,0 +1,28 @@
+
+=== BRIDGE STARTUP LOG ===
+bridge_enabled=true
+ghost_registry_loaded=true
+ghost_basins_loaded=8
+specialist_bank_loaded=false
+specialists_loaded=0
+projection_strategy=simple
+==========================
+
+{
+  "bridge_enabled": true,
+  "ghost_basins_loaded": 8,
+  "ghost_registry_loaded": true,
+  "projection_strategy": "simple",
+  "specialist_bank_loaded": false,
+  "specialists_loaded": 0
+}
+ [UNIVERSE] Using live model token embeddings (n=1000)
+ [REMEMBER-VAULT] remember detected but no 64D probe available
+ [COLLAB_HYGIENE] assistant_removed=3 repeated_requests_removed=0 correction_tail_truncated=false partial_control_fragment_removed=false turn=0
+ [COLLAB_HYGIENE] assistant_removed=2 repeated_requests_removed=0 correction_tail_truncated=false partial_control_fragment_removed=false turn=1
+ [COLLAB_HYGIENE] assistant_removed=7 repeated_requests_removed=0 correction_tail_truncated=false partial_control_fragment_removed=false turn=2
+ [COLLAB_HYGIENE] assistant_removed=6 repeated_requests_removed=0 correction_tail_truncated=false partial_control_fragment_removed=false turn=3
+ [AGENCY_HANDS] lock=ED. remembers_added=0 evicted=0 tail_truncated=true learning_event=false turn=3
+ [TELEMETRY] Saving to "harness/runs/latch-0006/ans_off_42.jsonl"
+ [TIMING] Saving to "harness/runs/latch-0006/ans_off_42.run_timing.json"
+[forward_profile] disabled (set NIODOO_PROFILE_FORWARD=1 to enable)

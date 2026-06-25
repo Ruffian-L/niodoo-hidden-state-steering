@@ -1,0 +1,9 @@
+
+=== BRIDGE STARTUP LOG ===
+bridge_enabled=true
+ghost_registry_loaded=true
+ghost_basins_loaded=8
+specialist_bank_loaded=false
+specialists_loaded=0
+projection_strategy=simple
+==========================

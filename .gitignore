@@ -30,3 +30,14 @@ scratch/
 .DS_Store
 *.swp
 *~
+.vscode/
+
+# Harness run blobs — raw dumps are heavy; keep only the human-readable evidence
+# (card.md, scores.json, answers_readable.txt, *.run_timing.json are committed).
+harness/runs/**/*.gz
+harness/runs/**/*.jsonl
+harness/runs/**/*.txt
+!harness/runs/**/answers_readable.txt
+
+# Local-only archive of dormant full_library research modules (off GitHub, kept on disk)
+niodoo/legacy/

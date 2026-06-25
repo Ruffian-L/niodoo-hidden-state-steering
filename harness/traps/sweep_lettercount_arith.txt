@@ -1,0 +1,4 @@
+How many times does the letter s appear in mississippi? Give the final number only.
+How many times does the letter r appear in strawberry? Give the final number only.
+What is 17 multiplied by 24? Give the final number only.
+What is 13 multiplied by 17? Give the final number only.

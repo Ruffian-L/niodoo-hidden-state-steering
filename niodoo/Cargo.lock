@@ -426,7 +426,7 @@ checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
 [[package]]
 name = "candle-core"
 version = "0.10.2"
-source = "git+https://github.com/huggingface/candle.git?branch=main#5447a8779871654e542e65693e7d26f1e33b215f"
+source = "git+https://github.com/huggingface/candle.git?rev=5447a8779871654e542e65693e7d26f1e33b215f#5447a8779871654e542e65693e7d26f1e33b215f"
 dependencies = [
  "byteorder",
  "candle-kernels",
@@ -452,7 +452,7 @@ dependencies = [
 [[package]]
 name = "candle-kernels"
 version = "0.10.2"
-source = "git+https://github.com/huggingface/candle.git?branch=main#5447a8779871654e542e65693e7d26f1e33b215f"
+source = "git+https://github.com/huggingface/candle.git?rev=5447a8779871654e542e65693e7d26f1e33b215f#5447a8779871654e542e65693e7d26f1e33b215f"
 dependencies = [
  "cudaforge",
 ]
@@ -460,7 +460,7 @@ dependencies = [
 [[package]]
 name = "candle-nn"
 version = "0.10.2"
-source = "git+https://github.com/huggingface/candle.git?branch=main#5447a8779871654e542e65693e7d26f1e33b215f"
+source = "git+https://github.com/huggingface/candle.git?rev=5447a8779871654e542e65693e7d26f1e33b215f#5447a8779871654e542e65693e7d26f1e33b215f"
 dependencies = [
  "candle-core",
  "half",
@@ -475,7 +475,7 @@ dependencies = [
 [[package]]
 name = "candle-transformers"
 version = "0.10.2"
-source = "git+https://github.com/huggingface/candle.git?branch=main#5447a8779871654e542e65693e7d26f1e33b215f"
+source = "git+https://github.com/huggingface/candle.git?rev=5447a8779871654e542e65693e7d26f1e33b215f#5447a8779871654e542e65693e7d26f1e33b215f"
 dependencies = [
  "byteorder",
  "candle-core",
@@ -493,7 +493,7 @@ dependencies = [
 [[package]]
 name = "candle-ug"
 version = "0.10.2"
-source = "git+https://github.com/huggingface/candle.git?branch=main#5447a8779871654e542e65693e7d26f1e33b215f"
+source = "git+https://github.com/huggingface/candle.git?rev=5447a8779871654e542e65693e7d26f1e33b215f#5447a8779871654e542e65693e7d26f1e33b215f"
 dependencies = [
  "ug",
  "ug-cuda",
@@ -3656,7 +3656,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3b1ac5b3731ba34fdaa9785f8d74d17448cd18f30cf19e0c7e7b1fdb5272109"
 dependencies = [
  "cfg-if",
- "hashbrown 0.13.2",
+ "hashbrown 0.12.3",
  "indoc",
  "libc",
  "memoffset 0.8.0",
