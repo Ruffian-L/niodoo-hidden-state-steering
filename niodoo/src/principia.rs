@@ -3864,9 +3864,11 @@ impl PrincipiaEngine {
                         if dnorm < 1e-9 {
                             0.0
                         } else {
-                            // cos(δ_i, consensus) mapped from [-1,1] to [0,1]: an opposing
-                            // outlier is muted (not sign-flipped); an aligned packet keeps full pull.
-                            (0.5 + 0.5 * (dot / (dnorm * cnorm))).clamp(0.0, 1.0)
+                            // cos(δ_i, consensus) mapped from [-1,1] to [0.5,1]: damp, don't
+                            // kill. An opposing outlier keeps a 0.5 floor — still in the room,
+                            // it helps a little — rather than being muted to 0 (which on sparse
+                            // steps silenced the packet that was actually holding; latch-0004).
+                            (0.75 + 0.25 * (dot / (dnorm * cnorm))).clamp(0.5, 1.0)
                         }
                     })
                     .collect()
