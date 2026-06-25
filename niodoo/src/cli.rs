@@ -406,6 +406,17 @@ pub(crate) struct Args {
     #[arg(long, default_value_t = 0.0)]
     pub(crate) correction_packet_residual_gain: f32,
 
+    /// BC (basin-coherence): weight each firing correction packet by agreement with the
+    /// consensus pull direction (mute outliers) and grow the total budget on high coherence.
+    /// Default off => exact legacy summed-pull. Targets latch-0003 (aim/coherence, not magnitude).
+    #[arg(long, default_value_t = false)]
+    pub(crate) correction_packet_neighborhood_weighting: bool,
+
+    /// BC: extra total-budget gain at full basin coherence (effective total_clamp multiplier
+    /// = 1 + gain*coherence). Default 0.0 => reweighting only, no budget boost.
+    #[arg(long, default_value_t = 0.0)]
+    pub(crate) correction_packet_neighborhood_gain: f32,
+
     /// `pull_strength` field stamped on each minted CorrectionPacket. Used at runtime by the
     /// receiver: `delta_64 = pull_strength * direction(target - probe)`.
     #[arg(long, default_value_t = 0.1)]

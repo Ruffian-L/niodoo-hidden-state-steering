@@ -473,6 +473,18 @@ pub(crate) struct PrincipiaEngine {
     pub last_probe_residual_shape_4096: Option<Vec<f32>>,
     /// RC2 telemetry: number of fires this step whose force used a residual shape.
     pub last_correction_packet_residual_applied: usize,
+    /// BC (basin-coherence): when true, weight each firing packet by agreement with the
+    /// consensus pull direction (mute outliers) and grow the total budget on high coherence.
+    /// Default false => exact legacy summed-pull behavior. Targets the latch-0003 finding
+    /// that the weak/slipping latch is an aim/coherence problem, not a magnitude one.
+    pub correction_packet_neighborhood_weighting: bool,
+    /// BC: extra total-budget gain at full basin coherence (effective total_clamp multiplier
+    /// = 1 + gain*coherence). 0.0 => reweighting only, no budget boost. Only bites when
+    /// `correction_packet_total_clamp` > 0.
+    pub correction_packet_neighborhood_gain: f32,
+    /// BC telemetry: basin coherence of the last firing set, |Σδ|/Σ|δ| in [0,1]. 1.0 = all
+    /// firing packets agree on a direction (loud, confident latch); low = scattered.
+    pub last_correction_packet_basin_coherence: f32,
     /// `pull_strength` written on minted packets.
     pub correction_packet_out_pull_strength: f32,
     /// `distance_threshold` written on minted packets.
@@ -3813,7 +3825,68 @@ impl PrincipiaEngine {
         let mut effectiveness_count: usize = 0;
         let mut residual_applied: usize = 0;
 
-        for (packet_id, delta, effective_pull, payload_blended) in firings {
+        // Basin-coherence weighting (BC; flag-gated, default off => exact legacy summed-pull).
+        // Each firing packet pulls toward its own target; today those pulls just sum, so a
+        // packet pointing sideways to the crowd drags the basin, and a strong-but-lonely pull
+        // overshoots (latch-0003: magnitude is not the lever — aim/coherence is). When enabled:
+        //   - weight each packet by agreement with the consensus pull direction (mute outliers),
+        //   - grow the total budget only when agreement (coherence = |Σδ|/Σ|δ|) is high.
+        let bc_on = self.correction_packet_neighborhood_weighting && firings.len() > 1;
+        let mut basin_coherence = 1.0f32;
+        let neighborhood_weights: Vec<f32> = if bc_on {
+            let mut consensus = [0f32; 64];
+            let mut sum_norm = 0f32;
+            for (_, delta, _, _) in firings.iter() {
+                let mut n = 0f32;
+                for i in 0..64 {
+                    consensus[i] += delta[i];
+                    n += delta[i] * delta[i];
+                }
+                sum_norm += n.sqrt();
+            }
+            let cnorm: f32 = consensus.iter().map(|x| x * x).sum::<f32>().sqrt();
+            basin_coherence = if sum_norm > 1e-9 {
+                (cnorm / sum_norm).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            if cnorm > 1e-9 {
+                firings
+                    .iter()
+                    .map(|(_, delta, _, _)| {
+                        let mut dot = 0f32;
+                        let mut dn = 0f32;
+                        for i in 0..64 {
+                            dot += delta[i] * consensus[i];
+                            dn += delta[i] * delta[i];
+                        }
+                        let dnorm = dn.sqrt();
+                        if dnorm < 1e-9 {
+                            0.0
+                        } else {
+                            // cos(δ_i, consensus) mapped from [-1,1] to [0,1]: an opposing
+                            // outlier is muted (not sign-flipped); an aligned packet keeps full pull.
+                            (0.5 + 0.5 * (dot / (dnorm * cnorm))).clamp(0.0, 1.0)
+                        }
+                    })
+                    .collect()
+            } else {
+                vec![1.0; firings.len()]
+            }
+        } else {
+            vec![1.0; firings.len()]
+        };
+        // At full agreement the basin may pull (1 + gain) louder; at zero coherence, baseline.
+        // Only modulates the total budget below, and only when BC is on.
+        let coherence_budget_mult = if bc_on {
+            1.0 + self.correction_packet_neighborhood_gain.max(0.0) * basin_coherence
+        } else {
+            1.0
+        };
+
+        for (bc_idx, (packet_id, delta, effective_pull, payload_blended)) in
+            firings.into_iter().enumerate()
+        {
             // Bucket-expansion projection: each of the 64 dims spreads over its bucket of
             // hidden_dim/64 contiguous slots. Magnitude of resulting 4096D vector is
             // |delta_64| * sqrt(bucket_size). Clamp on the 4096D norm.
@@ -3839,6 +3912,13 @@ impl PrincipiaEngine {
             }
             if residual_slice.is_some() {
                 residual_applied += 1;
+            }
+            // BC: scale this packet's force by its agreement weight (all 1.0 when BC is off).
+            let bc_w = neighborhood_weights[bc_idx];
+            if bc_w < 1.0 - 1e-6 {
+                for slot in force_4096.iter_mut() {
+                    *slot *= bc_w;
+                }
             }
             let raw_norm: f32 = force_4096.iter().map(|x| x * x).sum::<f32>().sqrt();
             if !raw_norm.is_finite() || raw_norm < 1e-6 {
@@ -3919,7 +3999,7 @@ impl PrincipiaEngine {
         // total_clamp > 0 and the current cumulative L2 norm exceeds it,
         // scale the entire new_probe_force down. Doesn't affect per-packet
         // semantics, only the per-step total budget.
-        let total_clamp = self.correction_packet_total_clamp.max(0.0);
+        let total_clamp = self.correction_packet_total_clamp.max(0.0) * coherence_budget_mult;
         let final_total_norm = if total_clamp > 0.0 {
             // Recompute actual L2 norm of new_probe_force (the per-packet
             // accounting of `total_norm` sums clamped vector norms, which is
@@ -3971,6 +4051,7 @@ impl PrincipiaEngine {
             0.0
         };
         self.last_correction_packet_residual_applied = residual_applied;
+        self.last_correction_packet_basin_coherence = basin_coherence;
         if outcome_feedback && !fired_ids.is_empty() {
             if let Some(store) = self.correction_packets.as_mut() {
                 for (id, pre) in &fired_pre_dist {
