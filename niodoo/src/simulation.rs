@@ -878,7 +878,18 @@ pub(crate) async fn run_simulation(
         correction_packets: None,
         correction_packet_clamp: args.correction_packet_clamp,
         correction_packet_payload_blend: args.correction_packet_payload_blend,
+        correction_packet_live_mint: args.correction_packet_live_mint,
+        correction_packet_outcome_feedback: args.correction_packet_outcome_feedback,
+        correction_packet_outcome_gain: args.correction_packet_outcome_gain,
+        correction_packet_outcome_ema_alpha: args.correction_packet_outcome_ema_alpha,
+        correction_packet_outcome_floor: args.correction_packet_outcome_floor,
+        correction_packet_outcome_ceil: args.correction_packet_outcome_ceil,
+        correction_packet_residual_gain: args.correction_packet_residual_gain,
+        last_probe_residual_shape_4096: None,
+        last_correction_packet_residual_applied: 0,
         last_correction_packet_fire_count: 0,
+        last_correction_packet_live_minted_fired_count: 0,
+        last_correction_packet_effectiveness_avg: 0.0,
         last_correction_packet_force_norm: 0.0,
         last_correction_packet_ids: Vec::new(),
         last_probe_bucket_mean_64: None,
@@ -928,6 +939,19 @@ pub(crate) async fn run_simulation(
             .correction_packet_trajectory_top_k_competent,
         correction_packet_trajectory_top_k_drifting: args
             .correction_packet_trajectory_top_k_drifting,
+        correction_packet_trajectory_decay_competent: args
+            .correction_packet_trajectory_decay_competent,
+        correction_packet_trajectory_decay_drifting: args
+            .correction_packet_trajectory_decay_drifting,
+        last_correction_packet_effective_decay_rate: args.correction_packet_decay_rate,
+        correction_packet_trajectory_reclassify_interval: args
+            .correction_packet_trajectory_reclassify_interval,
+        correction_packet_trajectory_window_len: args.correction_packet_trajectory_window_len,
+        correction_packet_trajectory_hysteresis: args.correction_packet_trajectory_hysteresis,
+        trajectory_window: std::collections::VecDeque::new(),
+        trajectory_last_reclassify_step: 0,
+        trajectory_reclassify_count: 0,
+        last_trajectory_window_mean: 0.0,
         trajectory_fire_count_sum: 0.0,
         trajectory_fire_count_samples: 0,
         trajectory_classified: None,
@@ -1715,7 +1739,22 @@ pub(crate) async fn run_simulation(
             && args.mistake_reflex_path.is_some()
             && !args.raw_prompt
         {
-            mistake_reflex_memory.query(user_prompt, 3)
+            // RC4: when semantic resonance is on, pass the most recent 64D route probe
+            // (prior-turn context; empty on turn 0 => lexical fallback) so the gmms
+            // reflex gate can score route_64d cosine. Off => byte-identical query().
+            let semantic_probe: Option<&[f32]> = if args.mistake_reflex_semantic_resonance
+                && phys_engine.last_bridge_route_probe_64d.len() == 64
+            {
+                Some(phys_engine.last_bridge_route_probe_64d.as_slice())
+            } else {
+                None
+            };
+            let semantic_min_cos = if args.mistake_reflex_semantic_resonance {
+                args.mistake_reflex_semantic_min_cos
+            } else {
+                0.0
+            };
+            mistake_reflex_memory.query_with_probe(user_prompt, semantic_probe, semantic_min_cos, 3)
         } else {
             Vec::new()
         };
@@ -4125,6 +4164,16 @@ pub(crate) async fn run_simulation(
                     specialist_force_norm: phys_engine.last_specialist_force_norm,
                     correction_packet_vq_code: phys_engine.last_correction_packet_vq_code,
                     correction_packet_fire_count: phys_engine.last_correction_packet_fire_count,
+                    correction_packet_live_minted_fired_count: phys_engine
+                        .last_correction_packet_live_minted_fired_count,
+                    correction_packet_effectiveness_avg: phys_engine
+                        .last_correction_packet_effectiveness_avg,
+                    correction_packet_effective_decay_rate: phys_engine
+                        .last_correction_packet_effective_decay_rate,
+                    trajectory_window_mean: phys_engine.last_trajectory_window_mean,
+                    trajectory_reclassify_count: phys_engine.trajectory_reclassify_count,
+                    correction_packet_residual_applied: phys_engine
+                        .last_correction_packet_residual_applied,
                     correction_packet_force_norm: phys_engine.last_correction_packet_force_norm,
                     correction_packet_ids: phys_engine.last_correction_packet_ids.clone(),
                     packet_authority_score: phys_engine.last_packet_authority_score,

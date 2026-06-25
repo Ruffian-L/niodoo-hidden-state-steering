@@ -1727,7 +1727,7 @@ pub(crate) fn write_correction_packet_record(
     unfold_retry_factor: Option<f32>,
     hybrid_metadata: Option<&CorrectionPacketHybridMetadata>,
     unicode_v3_only: bool,
-) -> std::io::Result<()> {
+) -> std::io::Result<serde_json::Value> {
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent)?;
@@ -1851,7 +1851,10 @@ pub(crate) fn write_correction_packet_record(
         }
     }
     writeln!(file, "{}", record)?;
-    Ok(())
+    // Return the exact record written so the RC5 live-mint path can rebuild a
+    // byte-identical in-memory packet (CorrectionPacket::from_json_value) without
+    // re-deriving the JSON. Callers that only persist ignore this with `?;`.
+    Ok(record)
 }
 
 pub(crate) fn apply_collaborative_transparency_hygiene(

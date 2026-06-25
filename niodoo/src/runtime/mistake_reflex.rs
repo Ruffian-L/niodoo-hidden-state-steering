@@ -390,6 +390,23 @@ impl MistakeReflexMemory {
     }
 
     pub fn query(&self, user_prompt: &str, limit: usize) -> Vec<MistakeReflexMatch> {
+        self.query_with_probe(user_prompt, None, 0.0, limit)
+    }
+
+    /// RC4: like `query`, but adds a route_64d cosine resonance gate scoped to the
+    /// `gmms:semantic_correction_slice` family — the one family where resonance is
+    /// claimed but the stored `route_64d` was never scored (charter: "retrieval via
+    /// emotional resonance, not keywords"). The lexical match stays a HARD prefilter,
+    /// so a bad/absent probe can only reduce recall within an already-matched set,
+    /// never invent false positives. `semantic_min_cos <= 0` or a `None` probe =>
+    /// pure legacy lexical behavior (byte-identical).
+    pub fn query_with_probe(
+        &self,
+        user_prompt: &str,
+        prompt_route_64d: Option<&[f32]>,
+        semantic_min_cos: f32,
+        limit: usize,
+    ) -> Vec<MistakeReflexMatch> {
         if limit == 0 {
             return Vec::new();
         }
@@ -406,6 +423,21 @@ impl MistakeReflexMemory {
             let score = match_score_with_schema(event, &prompt, schema_override.as_ref());
             if score <= 0.0 {
                 continue;
+            }
+            // RC4: route_64d cosine resonance gate, scoped to the gmms semantic family.
+            // Added on top of the lexical prefilter above. The stored route_64d finally
+            // enters scoring here (it was previously dead weight).
+            let mut score = score;
+            if semantic_min_cos > 0.0 && event.domain == "gmms:semantic_correction_slice" {
+                if let (Some(pp), Some(ev)) = (prompt_route_64d, event.route_64d.as_deref()) {
+                    if pp.len() == 64 && ev.len() == 64 {
+                        let cos = crate::runtime::secret_sauce_codec::cosine_similarity_f32(pp, ev);
+                        if cos < semantic_min_cos {
+                            continue;
+                        }
+                        score *= 1.0 + cos.clamp(0.0, 1.0) * 0.5;
+                    }
+                }
             }
             let accepted_surfaces = if !schema_accepted_override.is_empty() {
                 schema_accepted_override

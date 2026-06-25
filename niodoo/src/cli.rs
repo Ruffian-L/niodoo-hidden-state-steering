@@ -366,6 +366,46 @@ pub(crate) struct Args {
     #[arg(long, default_value_t = false)]
     pub(crate) correction_packet_out_unicode_v3: bool,
 
+    /// RC5: when true, every packet minted this session (LOCK/REMEMBER/end-of-run capture)
+    /// is also inserted into the live in-memory firing store immediately, so it can fire on
+    /// a later step of the SAME process instead of only after a restart that reloads the
+    /// out-file. Requires `--correction-packets-out` to be set (no writer => nothing to
+    /// mint). Default false keeps existing runs and replay determinism byte-identical.
+    #[arg(long, default_value_t = false)]
+    pub(crate) correction_packet_live_mint: bool,
+
+    /// RC1: enable correction-packet outcome feedback (fire->measure->adjust). Each
+    /// fired packet's effect is measured the next step (did the probe move toward
+    /// target?) and folded into a per-packet effectiveness EMA that scales its applied
+    /// force. Default false => byte-identical legacy behavior.
+    #[arg(long, default_value_t = false)]
+    pub(crate) correction_packet_outcome_feedback: bool,
+
+    /// RC1: gain on the effectiveness EMA: force_factor = (1 + ema*gain).clamp(floor, ceil).
+    #[arg(long, default_value_t = 1.0)]
+    pub(crate) correction_packet_outcome_gain: f32,
+
+    /// RC1: EMA smoothing factor in [0, 1] for the per-packet effectiveness estimate.
+    #[arg(long, default_value_t = 0.2)]
+    pub(crate) correction_packet_outcome_ema_alpha: f32,
+
+    /// RC1: lower clamp on the effectiveness force factor (consistently-unhelpful
+    /// packets are damped to at most this fraction of base force).
+    #[arg(long, default_value_t = 0.5)]
+    pub(crate) correction_packet_outcome_floor: f32,
+
+    /// RC1: upper clamp on the effectiveness force factor (consistently-helpful packets
+    /// can be boosted up to this multiple of base force).
+    #[arg(long, default_value_t = 1.5)]
+    pub(crate) correction_packet_outcome_ceil: f32,
+
+    /// RC2: gain on the within-block residual shape when projecting a packet's force to
+    /// 4096D. 0.0 = legacy flat 64-block smear (no-op). >0 gives the force a true
+    /// within-block direction (requires `--correction-packet-live-mint` to capture and
+    /// attach the shape). Magnitude stays bounded by the existing clamps.
+    #[arg(long, default_value_t = 0.0)]
+    pub(crate) correction_packet_residual_gain: f32,
+
     /// `pull_strength` field stamped on each minted CorrectionPacket. Used at runtime by the
     /// receiver: `delta_64 = pull_strength * direction(target - probe)`.
     #[arg(long, default_value_t = 0.1)]
@@ -656,6 +696,36 @@ pub(crate) struct Args {
     /// Default 0 = no override.
     #[arg(long, default_value_t = 0)]
     pub(crate) correction_packet_trajectory_top_k_drifting: usize,
+
+    /// RC6: per-trajectory decay rate when classified "competent". 0.0 = no override
+    /// (use the global `--correction-packet-decay-rate`). Suggested 0.9 to preserve
+    /// earned answers near LOCK while still slowly decaying. Requires
+    /// `--correction-packet-trajectory-routing`.
+    #[arg(long, default_value_t = 0.0)]
+    pub(crate) correction_packet_trajectory_decay_competent: f32,
+
+    /// RC6: per-trajectory decay rate when classified "drifting". 0.0 = no override.
+    /// Suggested 0.5 (the population optimum from the decay sweep). Requires
+    /// `--correction-packet-trajectory-routing`.
+    #[arg(long, default_value_t = 0.0)]
+    pub(crate) correction_packet_trajectory_decay_drifting: f32,
+
+    /// RC3: re-classify the trajectory every N turn-steps once classified, instead of
+    /// latching the label one-shot at classify_step. 0 = legacy one-shot (byte-identical).
+    /// Requires `--correction-packet-trajectory-routing`.
+    #[arg(long, default_value_t = 0)]
+    pub(crate) correction_packet_trajectory_reclassify_interval: usize,
+
+    /// RC3: sliding-window length (in steps) for the re-classification window mean.
+    /// 0 falls back to `--correction-packet-trajectory-classify-step`.
+    #[arg(long, default_value_t = 0)]
+    pub(crate) correction_packet_trajectory_window_len: usize,
+
+    /// RC3: hysteresis band around the fire-count threshold for re-classification, to
+    /// avoid label thrash. A flip happens only when the window mean crosses
+    /// `threshold ± hysteresis`.
+    #[arg(long, default_value_t = 0.0)]
+    pub(crate) correction_packet_trajectory_hysteresis: f32,
 
     /// §10bf prompt-level codec activation gate (the *coarse* layer
     /// complementing §10bd v11's per-trajectory *fine* layer). When this
@@ -1302,6 +1372,17 @@ pub(crate) struct Args {
     /// Mistake reflex runtime mode. shadow logs matches; influence adds process hints and gates LOCK.
     #[arg(long, value_enum, default_value = "off")]
     pub(crate) mistake_reflex_mode: MistakeReflexMode,
+
+    /// RC4: enable the route_64d cosine resonance gate for the gmms semantic-correction
+    /// reflex family (lexical match stays a hard prefilter). Makes the stored route_64d
+    /// vector finally enter scoring. Default false => byte-identical lexical behavior.
+    #[arg(long, default_value_t = false)]
+    pub(crate) mistake_reflex_semantic_resonance: bool,
+
+    /// RC4: minimum prompt-vs-event route_64d cosine for a gmms reflex to survive the
+    /// resonance gate. Only active with `--mistake-reflex-semantic-resonance`.
+    #[arg(long, default_value_t = 0.35)]
+    pub(crate) mistake_reflex_semantic_min_cos: f32,
 
     /// Mistake reflex action surface. text-hint is v0 scaffolding; summary-hint ablates the prompt surface; evidence-gate and hidden-control reduce prompt text.
     #[arg(long, value_enum, default_value = "text-hint")]

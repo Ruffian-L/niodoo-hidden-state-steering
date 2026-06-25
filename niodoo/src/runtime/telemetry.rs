@@ -283,6 +283,24 @@ pub struct TokenPhysics {
     pub correction_packet_vq_code: Option<u8>,
     /// Number of vq-keyed correction packets that fired this step.
     pub correction_packet_fire_count: usize,
+    /// RC5: of the fires this step, how many were packets minted THIS session and
+    /// inserted into the live store (vs loaded from disk at startup). A nonzero value
+    /// on a later turn is the proof that the mint->insert->fire loop closed in-process.
+    pub correction_packet_live_minted_fired_count: usize,
+    /// RC1: mean per-packet effectiveness EMA over the packets that fired this step
+    /// (measured target-distance reduction; >0 = corrections are helping). 0.0 when
+    /// no fired packet has been measured yet or outcome feedback is off.
+    pub correction_packet_effectiveness_avg: f32,
+    /// RC6: the correction-packet decay rate actually used this step after
+    /// per-trajectory class routing (equals the global rate when routing is off).
+    pub correction_packet_effective_decay_rate: f32,
+    /// RC3: sliding-window mean fire count used for mid-turn re-classification.
+    pub trajectory_window_mean: f32,
+    /// RC3: cumulative mid-turn trajectory-label flips this turn (0 in legacy one-shot).
+    pub trajectory_reclassify_count: u32,
+    /// RC2: number of fires this step whose force used a within-block residual shape
+    /// (high-resolution projection) instead of the flat 64-block smear.
+    pub correction_packet_residual_applied: usize,
     /// Sum of L2 norms (4096D) of all correction-packet forces added this step.
     pub correction_packet_force_norm: f32,
     /// Packet IDs that fired this step. Empty when no packets fired.
@@ -546,6 +564,12 @@ impl TokenPhysics {
             "vq_encode_error": self.vq_encode_error,
             "correction_packet_vq_code": self.correction_packet_vq_code,
             "correction_packet_fire_count": self.correction_packet_fire_count,
+            "correction_packet_live_minted_fired_count": self.correction_packet_live_minted_fired_count,
+            "correction_packet_effectiveness_avg": self.correction_packet_effectiveness_avg,
+            "correction_packet_effective_decay_rate": self.correction_packet_effective_decay_rate,
+            "trajectory_window_mean": self.trajectory_window_mean,
+            "trajectory_reclassify_count": self.trajectory_reclassify_count,
+            "correction_packet_residual_applied": self.correction_packet_residual_applied,
             "correction_packet_force_norm": self.correction_packet_force_norm,
             "correction_packet_ids": &self.correction_packet_ids,
         });

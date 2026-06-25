@@ -433,6 +433,46 @@ pub(crate) struct PrincipiaEngine {
     /// When true, minted packets omit numeric `target_z_64d` and store Unicode-only
     /// `target_z_unicode_v3` instead (see `--correction-packet-out-unicode-v3`).
     pub correction_packet_out_unicode_v3: bool,
+    /// RC5: when true, every packet minted this session (LOCK/REMEMBER/end-of-run
+    /// capture) is ALSO inserted into the live in-memory firing store immediately
+    /// after the file write, so it can fire on a later step of the SAME process
+    /// instead of only after a restart that reloads the out-file. Default false so
+    /// existing runs and replay determinism stay byte-identical until enabled via
+    /// `--correction-packet-live-mint`. No effect unless a writer
+    /// (`correction_packets_out`) is configured.
+    pub correction_packet_live_mint: bool,
+    /// RC5 telemetry: number of fires at the current step whose packet was
+    /// live-minted into the store this session (proof the closed loop fired).
+    pub last_correction_packet_live_minted_fired_count: usize,
+    /// RC1: master enable for correction-packet outcome feedback (fire->measure->
+    /// adjust). When true, each fired packet's effect is measured the NEXT step (did
+    /// the probe move toward target?) and folded into a per-packet effectiveness EMA
+    /// that scales its applied force — replacing blind fire_count decay as the
+    /// adaptation signal. Default false => byte-identical legacy behavior.
+    pub correction_packet_outcome_feedback: bool,
+    /// RC1: gain on the EMA when scaling force: `factor = (1 + ema*gain).clamp(floor, ceil)`.
+    pub correction_packet_outcome_gain: f32,
+    /// RC1: EMA smoothing factor in [0, 1].
+    pub correction_packet_outcome_ema_alpha: f32,
+    /// RC1: lower clamp on the EMA force factor (a consistently-unhelpful packet is
+    /// damped to at most this fraction of its base force, never fully zeroed unless 0).
+    pub correction_packet_outcome_floor: f32,
+    /// RC1: upper clamp on the EMA force factor (a consistently-helpful packet can be
+    /// boosted up to this multiple of its base force).
+    pub correction_packet_outcome_ceil: f32,
+    /// RC1 telemetry: mean effectiveness EMA over packets that fired this step
+    /// (0.0 when none measured).
+    pub last_correction_packet_effectiveness_avg: f32,
+    /// RC2: gain on the within-block residual shape when projecting a packet's force
+    /// to 4096D. 0.0 = strict legacy flat 64-block smear (no-op). >0 rotates each
+    /// block's force toward the captured residual direction so steering is no longer
+    /// piecewise-constant. Magnitude stays bounded by the existing clamps.
+    pub correction_packet_residual_gain: f32,
+    /// RC2: most recent mint's within-block residual shape (unit 4096D vector). Captured
+    /// alongside `last_probe_bucket_mean_64`; attached to live-minted packets.
+    pub last_probe_residual_shape_4096: Option<Vec<f32>>,
+    /// RC2 telemetry: number of fires this step whose force used a residual shape.
+    pub last_correction_packet_residual_applied: usize,
     /// `pull_strength` written on minted packets.
     pub correction_packet_out_pull_strength: f32,
     /// `distance_threshold` written on minted packets.
@@ -520,6 +560,16 @@ pub(crate) struct PrincipiaEngine {
     /// combine_mode, not K).
     pub correction_packet_trajectory_top_k_competent: usize,
     pub correction_packet_trajectory_top_k_drifting: usize,
+    /// RC6: per-trajectory decay rate. When trajectory routing is on and the turn is
+    /// classified, the firing decay rate is routed by class (mirrors the top-k
+    /// router). 0.0 = no override => fall back to the global `correction_packet_decay_rate`.
+    /// Lets decay be non-monotonic within a run (e.g. competent=0.9 preserves earned
+    /// answers, drifting=0.5 is the population optimum). Per-packet LOCK overrides
+    /// (decay_rate=Some(1.0)) still take precedence, so earned answers don't regress.
+    pub correction_packet_trajectory_decay_competent: f32,
+    pub correction_packet_trajectory_decay_drifting: f32,
+    /// RC6 telemetry: the decay rate actually used this step after class routing.
+    pub last_correction_packet_effective_decay_rate: f32,
     /// Per-turn rolling sum of `last_correction_packet_fire_count`. Reset
     /// on turn_start by `reset_trajectory_routing_state`. Accumulated
     /// each gate call until classification. Tuned to fire_count rather
@@ -542,6 +592,23 @@ pub(crate) struct PrincipiaEngine {
     /// all layer calls for the current decode step. On step boundary
     /// the sum is captured as one classifier sample, then reset.
     pub trajectory_pending_step_fires: usize,
+    /// RC3: sliding window of recent per-step fire counts for mid-turn
+    /// re-classification (cap = effective window length). Reset each turn.
+    pub trajectory_window: std::collections::VecDeque<f32>,
+    /// RC3: turn-step of the last (re)classification, gates the reclassify interval.
+    pub trajectory_last_reclassify_step: usize,
+    /// RC3: number of mid-turn label flips this turn (telemetry/proof the latch broke).
+    pub trajectory_reclassify_count: u32,
+    /// RC3 telemetry: most recent window mean used for re-classification.
+    pub last_trajectory_window_mean: f32,
+    /// RC3 config: re-classify every N turn-steps once classified. 0 = one-shot
+    /// (legacy byte-identical). Requires `correction_packet_trajectory_routing`.
+    pub correction_packet_trajectory_reclassify_interval: usize,
+    /// RC3 config: sliding-window length for the window mean. 0 falls back to
+    /// `correction_packet_trajectory_classify_step`.
+    pub correction_packet_trajectory_window_len: usize,
+    /// RC3 config: hysteresis band around the fire-count threshold to avoid thrash.
+    pub correction_packet_trajectory_hysteresis: f32,
     /// §10bs threshold above which packets are suppressed when the
     /// previous step's applied_ghost_mag exceeds this value.
     /// `0.0` disables the gate (legacy).
@@ -1806,6 +1873,10 @@ impl PrincipiaEngine {
         self.last_specialist_force_norm = 0.0;
         self.last_correction_packet_vq_code = None;
         self.last_correction_packet_fire_count = 0;
+        self.last_correction_packet_live_minted_fired_count = 0;
+        self.last_correction_packet_effectiveness_avg = 0.0;
+        self.last_correction_packet_effective_decay_rate = self.correction_packet_decay_rate;
+        self.last_correction_packet_residual_applied = 0;
         self.last_correction_packet_force_norm = 0.0;
         self.last_correction_packet_ids.clear();
         self.last_packet_authority_score = 0.0;
@@ -1858,6 +1929,12 @@ impl PrincipiaEngine {
         self.trajectory_turn_step = 0;
         self.trajectory_last_classified_step = usize::MAX;
         self.trajectory_pending_step_fires = 0;
+        // RC3: clear the sliding window and re-classification bookkeeping so each turn
+        // re-classifies from scratch.
+        self.trajectory_window.clear();
+        self.trajectory_last_reclassify_step = 0;
+        self.trajectory_reclassify_count = 0;
+        self.last_trajectory_window_mean = 0.0;
         // §10bt: clear prev-step ghost cache so the §10bs gate starts
         // each turn fresh and only suppresses after bridge has fired
         // at least once in this turn.
@@ -3158,7 +3235,46 @@ impl PrincipiaEngine {
         probe_64.copy_from_slice(&probe_64_vec);
 
         let current_step = self.current_step as u64;
-        let decay_rate = self.correction_packet_decay_rate;
+        // RC1 outcome-feedback knobs (read once; default-off => no behavior change).
+        let outcome_feedback = self.correction_packet_outcome_feedback;
+        let outcome_gain = self.correction_packet_outcome_gain;
+        let outcome_alpha = self.correction_packet_outcome_ema_alpha.clamp(0.0, 1.0);
+        let outcome_floor = self.correction_packet_outcome_floor;
+        let outcome_ceil = self
+            .correction_packet_outcome_ceil
+            .max(self.correction_packet_outcome_floor);
+        let residual_gain = self.correction_packet_residual_gain;
+        // RC1: settle the PREVIOUS step's armed fires against the current probe — which
+        // IS their post-force hidden state — before this step fires. This folds each
+        // fired packet's measured target-distance change into its effectiveness EMA.
+        if outcome_feedback {
+            if let Some(store) = self.correction_packets.as_mut() {
+                store.settle_outcomes(&probe_64, outcome_alpha);
+            }
+        }
+        // RC6: per-trajectory decay routing. Mirror the top-k router: when trajectory
+        // routing is on and the turn is classified, use the per-class decay rate
+        // (0.0 = no override => fall back to the global rate). The decay math and the
+        // per-packet LOCK override (decay_rate=Some(1.0)) are untouched downstream, so
+        // earned-answer preservation cannot regress.
+        let decay_rate = if self.correction_packet_trajectory_routing {
+            match self.trajectory_classified.as_deref() {
+                Some("competent")
+                    if self.correction_packet_trajectory_decay_competent > 0.0 =>
+                {
+                    self.correction_packet_trajectory_decay_competent
+                }
+                Some("drifting")
+                    if self.correction_packet_trajectory_decay_drifting > 0.0 =>
+                {
+                    self.correction_packet_trajectory_decay_drifting
+                }
+                _ => self.correction_packet_decay_rate,
+            }
+        } else {
+            self.correction_packet_decay_rate
+        };
+        self.last_correction_packet_effective_decay_rate = decay_rate;
         let decay_arg = if decay_rate > 0.0 && decay_rate < 1.0 {
             Some(decay_rate)
         } else {
@@ -3467,6 +3583,13 @@ impl PrincipiaEngine {
             fwd.sort_by(|a, b| a.3.partial_cmp(&b.3).unwrap_or(std::cmp::Ordering::Equal));
             fwd.truncate(fire_top_k);
         }
+        // RC1: capture each candidate's pre-fire probe->target distance (tuple field
+        // .3) before it is dropped, so fires can be armed for next-step measurement.
+        let fired_pre_dist: Vec<(String, f32)> = if outcome_feedback {
+            fwd.iter().map(|t| (t.0.clone(), t.3)).collect()
+        } else {
+            Vec::new()
+        };
         let firings: Vec<(String, [f32; 64], f32, bool)> = fwd
             .into_iter()
             .map(|(packet_id, delta, pull, _dist, payload_blended)| {
@@ -3508,20 +3631,58 @@ impl PrincipiaEngine {
                     self.trajectory_fire_count_sum += self.trajectory_pending_step_fires as f32;
                     self.trajectory_fire_count_samples += 1;
                     self.trajectory_turn_step += 1;
+                    let threshold = self.correction_packet_trajectory_fire_count_threshold;
+                    // RC3: maintain a sliding window of recent per-step fire counts.
+                    let window_len = if self.correction_packet_trajectory_window_len > 0 {
+                        self.correction_packet_trajectory_window_len
+                    } else {
+                        self.correction_packet_trajectory_classify_step.max(1)
+                    };
+                    self.trajectory_window
+                        .push_back(self.trajectory_pending_step_fires as f32);
+                    while self.trajectory_window.len() > window_len {
+                        self.trajectory_window.pop_front();
+                    }
                     if self.trajectory_classified.is_none()
                         && self.trajectory_turn_step
                             >= self.correction_packet_trajectory_classify_step
                     {
+                        // Initial one-shot classification (lifetime mean) — unchanged.
                         let mean_fire_count = self.trajectory_fire_count_sum
                             / self.trajectory_fire_count_samples as f32;
-                        let label = if mean_fire_count
-                            > self.correction_packet_trajectory_fire_count_threshold
-                        {
+                        let label = if mean_fire_count > threshold {
                             "competent"
                         } else {
                             "drifting"
                         };
                         self.trajectory_classified = Some(label.to_string());
+                        self.trajectory_last_reclassify_step = self.trajectory_turn_step;
+                    } else if self.correction_packet_trajectory_reclassify_interval > 0
+                        && self.trajectory_classified.is_some()
+                        && self.trajectory_window.len() >= window_len
+                        && self
+                            .trajectory_turn_step
+                            .saturating_sub(self.trajectory_last_reclassify_step)
+                            >= self.correction_packet_trajectory_reclassify_interval
+                    {
+                        // RC3: mid-turn re-classification from the window mean with a
+                        // hysteresis band so suppression mode / top-K track recent
+                        // firing instead of a label frozen at classify_step.
+                        let window_mean: f32 = self.trajectory_window.iter().sum::<f32>()
+                            / self.trajectory_window.len() as f32;
+                        let hyst = self.correction_packet_trajectory_hysteresis.max(0.0);
+                        let cur = self.trajectory_classified.clone();
+                        let new_label: Option<&str> = match cur.as_deref() {
+                            Some("competent") if window_mean < threshold - hyst => Some("drifting"),
+                            Some("drifting") if window_mean > threshold + hyst => Some("competent"),
+                            _ => None,
+                        };
+                        if let Some(nl) = new_label {
+                            self.trajectory_classified = Some(nl.to_string());
+                            self.trajectory_reclassify_count += 1;
+                        }
+                        self.trajectory_last_reclassify_step = self.trajectory_turn_step;
+                        self.last_trajectory_window_mean = window_mean;
                     }
                 }
                 self.trajectory_pending_step_fires = 0;
@@ -3645,6 +3806,12 @@ impl PrincipiaEngine {
         let mut fired_ids: Vec<String> = Vec::with_capacity(firings.len());
         let mut effective_pull_sum: f32 = 0.0;
         let mut payload_blend_fire_count: usize = 0;
+        // RC1: immutable handle for per-packet effectiveness lookups during projection,
+        // plus accumulators for the mean-EMA telemetry. Held read-only across the loop.
+        let outcome_store = self.correction_packets.as_ref();
+        let mut effectiveness_sum: f32 = 0.0;
+        let mut effectiveness_count: usize = 0;
+        let mut residual_applied: usize = 0;
 
         for (packet_id, delta, effective_pull, payload_blended) in firings {
             // Bucket-expansion projection: each of the 64 dims spreads over its bucket of
@@ -3652,9 +3819,26 @@ impl PrincipiaEngine {
             // |delta_64| * sqrt(bucket_size). Clamp on the 4096D norm.
             let bucket_size = hidden_dim.div_ceil(64).max(1);
             let mut force_4096 = vec![0f32; hidden_dim];
+            // RC2: if a residual shape is attached, rotate each block's force toward the
+            // true within-block direction instead of a flat smear. None => legacy flat.
+            let residual_slice: Option<&[f32]> = if residual_gain > 0.0 {
+                match outcome_store.and_then(|s| s.residual_shape(&packet_id)) {
+                    Some(shape) if shape.len() == hidden_dim => Some(shape),
+                    _ => None,
+                }
+            } else {
+                None
+            };
             for (idx, slot) in force_4096.iter_mut().enumerate() {
                 let bucket = (idx / bucket_size).min(63);
-                *slot = delta[bucket];
+                let base = delta[bucket];
+                *slot = match residual_slice {
+                    Some(shape) => base * (1.0 + residual_gain * shape[idx]),
+                    None => base,
+                };
+            }
+            if residual_slice.is_some() {
+                residual_applied += 1;
             }
             let raw_norm: f32 = force_4096.iter().map(|x| x * x).sum::<f32>().sqrt();
             if !raw_norm.is_finite() || raw_norm < 1e-6 {
@@ -3680,6 +3864,31 @@ impl PrincipiaEngine {
                 applied_norm_pre * competence_factor
             } else {
                 applied_norm_pre
+            };
+            // RC1: measured-effectiveness overlay. `factor = (1 + ema*gain)` clamped to
+            // [floor, ceil]; 1.0 when the packet has never been measured or feedback is
+            // off, so this is a strict no-op by default. A packet that has reduced
+            // target distance (ema>0) keeps/gains force against decay; one that hasn't
+            // (ema<0) is damped toward `floor`.
+            let ema_factor = if outcome_feedback {
+                match outcome_store.and_then(|s| s.effectiveness(&packet_id)) {
+                    Some(e) => {
+                        effectiveness_sum += e;
+                        effectiveness_count += 1;
+                        (1.0 + e * outcome_gain).clamp(outcome_floor, outcome_ceil)
+                    }
+                    None => 1.0,
+                }
+            } else {
+                1.0
+            };
+            let applied_norm = if outcome_feedback && (ema_factor - 1.0).abs() > 1e-6 {
+                for slot in scaled_force.iter_mut() {
+                    *slot *= ema_factor;
+                }
+                applied_norm * ema_factor
+            } else {
+                applied_norm
             };
             let force_t = match Tensor::from_vec(scaled_force, (hidden_dim,), device) {
                 Ok(t) => t,
@@ -3745,10 +3954,32 @@ impl PrincipiaEngine {
             total_norm
         };
 
-        if let Some(store) = self.correction_packets.as_ref() {
+        let live_minted_fired = if let Some(store) = self.correction_packets.as_ref() {
             store.record_fires_by_id(&fired_ids, current_step);
-        }
+            // RC5: how many of this step's fires were packets minted this session.
+            store.count_live_minted_fired(&fired_ids)
+        } else {
+            0
+        };
         self.last_correction_packet_fire_count = fire_count;
+        self.last_correction_packet_live_minted_fired_count = live_minted_fired;
+        // RC1: record mean effectiveness over fired packets, then arm this step's fires
+        // so the NEXT step's probe (their post-force state) settles their outcome.
+        self.last_correction_packet_effectiveness_avg = if effectiveness_count > 0 {
+            effectiveness_sum / effectiveness_count as f32
+        } else {
+            0.0
+        };
+        self.last_correction_packet_residual_applied = residual_applied;
+        if outcome_feedback && !fired_ids.is_empty() {
+            if let Some(store) = self.correction_packets.as_mut() {
+                for (id, pre) in &fired_pre_dist {
+                    if fired_ids.iter().any(|f| f == id) {
+                        store.arm_outcome(id, *pre, current_step);
+                    }
+                }
+            }
+        }
         self.last_correction_packet_force_norm = final_total_norm;
         self.last_correction_packet_ids = fired_ids;
         if fire_count > 0 {
@@ -3844,6 +4075,49 @@ impl PrincipiaEngine {
         }
     }
 
+    /// RC5: insert a just-minted packet into the live in-memory firing store so it
+    /// can fire on a LATER step of the SAME process (closing the mint->insert->fire
+    /// loop that previously required a process restart). `record` is the exact JSONL
+    /// value returned by `write_correction_packet_record`; rebuilding the packet from
+    /// it via `from_json_value` guarantees same-session firing is byte-identical to
+    /// next-session firing. No-op when `correction_packet_live_mint` is disabled. A
+    /// round-trip failure is logged and skipped — the file write already persisted the
+    /// packet, so a future process still recovers it.
+    #[cfg(feature = "niodv4_bridge")]
+    fn insert_minted_packet_live(&mut self, record: serde_json::Value) {
+        if !self.correction_packet_live_mint {
+            return;
+        }
+        // RC2: clone the residual shape (if captured) before borrowing the store.
+        let residual = if self.correction_packet_residual_gain > 0.0 {
+            self.last_probe_residual_shape_4096.clone()
+        } else {
+            None
+        };
+        match crate::bridge::CorrectionPacket::from_json_value(record) {
+            Ok(packet) => {
+                let pid = packet.packet_id.clone();
+                let store = self
+                    .correction_packets
+                    .get_or_insert_with(crate::bridge::CorrectionPacketStore::new);
+                store.insert_live(packet);
+                if let Some(shape) = residual {
+                    store.set_residual_shape(&pid, shape);
+                }
+            }
+            Err(e) => {
+                eprintln!(
+                    " [CORRECTION_PACKET] RC5 live-mint insert skipped (record round-trip failed): {e}"
+                );
+            }
+        }
+    }
+
+    /// No-op when the correction-packet store is compiled out (no `niodv4_bridge`):
+    /// the file write still happened, there is just no live firing store to insert into.
+    #[cfg(not(feature = "niodv4_bridge"))]
+    fn insert_minted_packet_live(&mut self, _record: serde_json::Value) {}
+
     /// Append one CorrectionPacket JSONL record to `correction_packets_out` capturing the
     /// most recent bucket-mean probe as the target. No-op when the writer is disabled
     /// (`correction_packets_out=None`), no probe was captured, or the codebook is missing.
@@ -3908,7 +4182,7 @@ impl PrincipiaEngine {
             None,
             "live_capture",
         );
-        write_correction_packet_record(
+        let record = write_correction_packet_record(
             &path,
             &packet_id,
             vq_code,
@@ -3926,6 +4200,8 @@ impl PrincipiaEngine {
         )?;
         // §10bf: increment count
         *self.mint_bucket_counts.entry(vq_code).or_insert(0) += 1;
+        // RC5: also insert into the live store so it can fire later this process.
+        self.insert_minted_packet_live(record);
         Ok(true)
     }
 
@@ -4053,7 +4329,7 @@ impl PrincipiaEngine {
             Some(1.0),
             "lock_payload",
         );
-        write_correction_packet_record(
+        let record = write_correction_packet_record(
             &path,
             &packet_id,
             vq_code,
@@ -4085,6 +4361,8 @@ impl PrincipiaEngine {
         )?;
         // §10bf: increment bucket count on successful mint
         *self.mint_bucket_counts.entry(vq_code).or_insert(0) += 1;
+        // RC5: also insert into the live store so it can fire later this process.
+        self.insert_minted_packet_live(record);
         Ok(true)
     }
 
@@ -4174,7 +4452,7 @@ impl PrincipiaEngine {
                 None,
                 "remember_payload",
             );
-            write_correction_packet_record(
+            let record = write_correction_packet_record(
                 &path,
                 &packet_id,
                 vq_code,
@@ -4202,6 +4480,8 @@ impl PrincipiaEngine {
             written += 1;
             // §10bf: increment bucket count
             *self.mint_bucket_counts.entry(vq_code).or_insert(0) += 1;
+            // RC5: also insert into the live store so it can fire later this process.
+            self.insert_minted_packet_live(record);
         }
         Ok(written)
     }
@@ -4380,6 +4660,36 @@ impl PhysicsEngine for PrincipiaEngine {
                     let mut arr = [0f32; 64];
                     arr.copy_from_slice(&probe64_vec);
                     self.last_probe_bucket_mean_64 = Some(arr);
+                }
+            }
+        }
+        // RC2: capture the within-block residual SHAPE (what bucket-mean discards) so a
+        // minted packet can later steer with a true 4096D direction, not a flat smear.
+        // Only when residual projection is enabled and a writer is configured.
+        if self.correction_packet_residual_gain > 0.0 && self.correction_packets_out.is_some() {
+            if let (Ok(probe_full), Some(mean64)) =
+                (probe.to_vec1::<f32>(), self.last_probe_bucket_mean_64)
+            {
+                let hidden_dim = probe_full.len();
+                if hidden_dim > 0 {
+                    let bucket_size = hidden_dim.div_ceil(64).max(1);
+                    let mut shape = vec![0f32; hidden_dim];
+                    let mut norm_sq = 0f32;
+                    for (idx, &v) in probe_full.iter().enumerate() {
+                        let b = (idx / bucket_size).min(63);
+                        let r = v - mean64[b];
+                        shape[idx] = r;
+                        norm_sq += r * r;
+                    }
+                    let norm = norm_sq.sqrt();
+                    self.last_probe_residual_shape_4096 = if norm.is_finite() && norm > 1e-6 {
+                        for s in shape.iter_mut() {
+                            *s /= norm;
+                        }
+                        Some(shape)
+                    } else {
+                        None
+                    };
                 }
             }
         }

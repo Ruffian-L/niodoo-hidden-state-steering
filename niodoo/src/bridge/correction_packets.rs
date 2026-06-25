@@ -22,7 +22,7 @@
 //! `HashMap<u8, Vec<CorrectionPacket>>` for O(1) lookup keyed on `vq_code`.
 
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -441,6 +441,20 @@ impl CorrectionPacket {
         })
     }
 
+    /// RC5 live-mint helper: rebuild a `CorrectionPacket` from the exact
+    /// `serde_json::Value` record the JSONL writer emitted. Goes through the same
+    /// `CorrectionPacketJson` deserialize + `from_json` path the on-disk loader
+    /// uses, so a packet inserted live this session is byte-identical to the one a
+    /// future process would load from the out-file. Returns Err on a malformed
+    /// round-trip (caller logs and skips the live insert — the file write already
+    /// succeeded, so a future process still recovers the packet).
+    pub fn from_json_value(
+        value: serde_json::Value,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let raw: CorrectionPacketJson = serde_json::from_value(value)?;
+        Self::from_json(raw)
+    }
+
     /// Resolve which unfold factor to apply to this packet when relapse fires.
     /// Per-packet `unfold_factor.unwrap_or(engine_unfold_factor)`. Bounded to
     /// `>= 0.0`. Earned packets typically stamp `Some(1.0)` to skip the boost.
@@ -708,6 +722,29 @@ pub fn decide_packet_authority(
 pub struct CorrectionPacketStore {
     by_vq_code: HashMap<u8, Vec<CorrectionPacket>>,
     total: usize,
+    /// Packet ids that were inserted into this store *during the live session*
+    /// via `insert_live` (RC5: same-process mint->insert->fire loop), as opposed
+    /// to loaded from disk at startup. Lets telemetry distinguish a fire driven by
+    /// a correction minted THIS session from one carried in from a prior process,
+    /// without widening the per-packet struct (which would ripple through every
+    /// test constructor). A live-minted packet is otherwise byte-identical to its
+    /// on-disk form, so firing/decay logic treats it exactly like a loaded packet.
+    live_minted_ids: HashSet<String>,
+    /// RC1 outcome feedback: per-packet effectiveness EMA (packet_id -> value in
+    /// [-1, 1]). Absent = never measured. Folded each step from the next-step
+    /// target-distance delta after a fire; positive = the correction moved the probe
+    /// toward its target. Scales applied force magnitude, turning blind fire_count
+    /// decay into measured error reduction.
+    effectiveness_ema: HashMap<String, f32>,
+    /// RC1: packets fired last step awaiting a post-force distance measurement.
+    /// packet_id -> (pre-fire probe->target distance, step armed).
+    pending_outcome: HashMap<String, (f32, u64)>,
+    /// RC2: per-packet within-block residual SHAPE (unit-normalized 4096D vector
+    /// capturing the structure bucket-mean discards). When present, the force
+    /// projection rotates the flat 64-block smear toward this shape so the steering is
+    /// no longer piecewise-constant. Populated for live-minted packets this session;
+    /// cross-process persistence (JSONL) is a follow-up.
+    residual_shape: HashMap<String, Vec<f32>>,
 }
 
 impl CorrectionPacketStore {
@@ -745,6 +782,102 @@ impl CorrectionPacketStore {
             .or_default()
             .push(packet);
         self.total += 1;
+    }
+
+    /// RC5: insert a packet minted during the live session so it can fire on a
+    /// LATER step of the SAME process. Identical to `insert` except the packet's
+    /// id is also recorded in `live_minted_ids` so telemetry can attribute fires
+    /// to this-session corrections. The packet itself must already be the exact
+    /// `CorrectionPacket` a future process would load from the out-file (build it
+    /// via `CorrectionPacket::from_json_value` on the same record the writer
+    /// emitted) so same-session firing and next-session firing are byte-identical.
+    pub fn insert_live(&mut self, packet: CorrectionPacket) {
+        self.live_minted_ids.insert(packet.packet_id.clone());
+        self.insert(packet);
+    }
+
+    /// Of the supplied fired packet ids, how many correspond to packets that were
+    /// live-minted into this store this session. This is the load-bearing proof
+    /// field for the RC5 closed loop: a nonzero value on a later turn means a
+    /// correction minted earlier in the same process actually steered the model.
+    pub fn count_live_minted_fired(&self, packet_ids: &[String]) -> usize {
+        packet_ids
+            .iter()
+            .filter(|id| self.live_minted_ids.contains(*id))
+            .count()
+    }
+
+    /// RC1: look up a packet's 64D target by id (copied out). Used by
+    /// `settle_outcomes` to recompute post-force distance.
+    fn target_for_id(&self, packet_id: &str) -> Option<[f32; 64]> {
+        for packets in self.by_vq_code.values() {
+            for p in packets {
+                if p.packet_id == packet_id {
+                    return Some(p.target_z_64d);
+                }
+            }
+        }
+        None
+    }
+
+    /// RC1: arm a fired packet for next-step outcome measurement. `pre_distance` is
+    /// the probe->target distance at fire time (before this step's force lands).
+    pub fn arm_outcome(&mut self, packet_id: &str, pre_distance: f32, step: u64) {
+        if pre_distance.is_finite() {
+            self.pending_outcome
+                .insert(packet_id.to_string(), (pre_distance, step));
+        }
+    }
+
+    /// RC1: settle all armed outcomes against the current probe — which IS the
+    /// post-force hidden state of the step the fires were armed on, so no synchronous
+    /// re-read is needed. For each armed packet, `delta = ((pre - post)/pre)` clamped
+    /// to [-1, 1] (positive = the correction moved the probe toward its target). Fold
+    /// into the packet's effectiveness EMA with smoothing `alpha`. Clears pending.
+    /// Returns the number of outcomes settled.
+    pub fn settle_outcomes(&mut self, probe_z: &[f32; 64], alpha: f32) -> usize {
+        if self.pending_outcome.is_empty() {
+            return 0;
+        }
+        let pending: Vec<(String, (f32, u64))> = self.pending_outcome.drain().collect();
+        let mut settled = 0usize;
+        for (id, (pre, _step)) in pending {
+            let Some(target) = self.target_for_id(&id) else {
+                continue;
+            };
+            let mut sq = 0f32;
+            for i in 0..64 {
+                let d = probe_z[i] - target[i];
+                sq += d * d;
+            }
+            let post = sq.sqrt();
+            if !(pre > 1e-6) || !post.is_finite() {
+                continue;
+            }
+            let delta = ((pre - post) / pre).clamp(-1.0, 1.0);
+            let new_ema = match self.effectiveness_ema.get(&id) {
+                Some(&e) => (1.0 - alpha) * e + alpha * delta,
+                None => delta,
+            };
+            self.effectiveness_ema.insert(id, new_ema);
+            settled += 1;
+        }
+        settled
+    }
+
+    /// RC1: current effectiveness EMA for a packet (None = never measured).
+    pub fn effectiveness(&self, packet_id: &str) -> Option<f32> {
+        self.effectiveness_ema.get(packet_id).copied()
+    }
+
+    /// RC2: attach a within-block residual shape to a packet (by id).
+    pub fn set_residual_shape(&mut self, packet_id: &str, shape: Vec<f32>) {
+        self.residual_shape.insert(packet_id.to_string(), shape);
+    }
+
+    /// RC2: the residual shape for a packet, if one was captured this session.
+    pub fn residual_shape(&self, packet_id: &str) -> Option<&[f32]> {
+        self.residual_shape.get(packet_id).map(|v| v.as_slice())
     }
 
     pub fn total(&self) -> usize {
