@@ -1,6 +1,6 @@
-// Default library surface is intentionally small so the runtime binary can build
-// without compiling stale experimental subsystems. Enable `full_library` to
-// expose the historical aggregate module tree.
+// Library surface for the runtime binary. Only modules the eval binary actually
+// reaches are exposed here; the historical niodv4 research module tree has been
+// retired from the public tree.
 #[cfg(feature = "niodv4_bridge")]
 pub mod bridge;
 pub mod ontological_inversion;
@@ -8,89 +8,11 @@ pub mod physics;
 pub mod types;
 pub mod visualizer;
 
-#[cfg(feature = "full_library")]
-pub mod adapter;
-#[cfg(feature = "full_library")]
-pub mod bench;
 pub mod config;
-#[cfg(feature = "full_library")]
-pub mod constants;
-#[cfg(feature = "full_library")]
-pub mod curator;
-#[cfg(feature = "full_library")]
-pub mod embeddings;
-#[cfg(feature = "full_library")]
-pub mod encoder;
-#[cfg(feature = "full_library")]
-pub mod energy;
-#[cfg(feature = "full_library")]
-pub mod gaussian_rag;
-#[cfg(feature = "full_library")]
-pub mod generative;
-#[cfg(feature = "full_library")]
-pub mod genesis;
 pub mod gpu;
-#[cfg(feature = "full_library")]
-pub mod hopfield;
 pub mod indexing;
-#[cfg(feature = "full_library")]
-pub mod ingest;
-#[cfg(feature = "full_library")]
-pub mod ipc;
-#[cfg(feature = "full_library")]
-pub mod language;
-#[cfg(feature = "full_library")]
-pub mod learning;
-#[cfg(feature = "full_library")]
-pub mod linguistics;
-#[cfg(feature = "full_library")]
-pub mod llm;
-#[cfg(feature = "full_library")]
-pub mod m3_compute;
-#[cfg(feature = "full_library")]
-pub mod manifold;
-#[cfg(feature = "full_library")]
-pub mod memory;
-#[cfg(feature = "full_library")]
-pub mod memory_system;
-#[cfg(feature = "full_library")]
-pub mod memory_topology;
-#[cfg(feature = "full_library")]
-pub mod model;
-#[cfg(feature = "full_library")]
-pub mod organism;
-#[cfg(feature = "full_library")]
-pub mod perceptual;
-#[cfg(feature = "full_library")]
-pub mod ranking;
-#[cfg(feature = "full_library")]
-pub mod regulation;
-#[cfg(feature = "full_library")]
-pub mod rendering;
-#[cfg(feature = "full_library")]
-pub mod retrieval;
-#[cfg(feature = "full_library")]
-pub mod search;
-#[cfg(feature = "full_library")]
-pub mod server;
-#[cfg(feature = "full_library")]
-pub mod shadow_logger;
-#[cfg(feature = "full_library")]
-pub mod sheaf;
-#[cfg(feature = "full_library")]
-pub mod splat_engine;
-#[cfg(feature = "full_library")]
-pub mod storage;
-#[cfg(feature = "full_library")]
-pub mod structs;
-#[cfg(feature = "full_library")]
-pub mod synapse;
 pub mod tivm;
-#[cfg(feature = "full_library")]
-pub mod token_promotion;
 pub mod utils;
-#[cfg(feature = "full_library")]
-pub mod watch;
 
 /// Scalar Braille/Cuneiform transport for secret_sauce V3 (tests + round-trip fidelity).
 pub mod secret_sauce_codec;
