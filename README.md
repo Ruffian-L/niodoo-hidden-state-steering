@@ -73,7 +73,10 @@ It verifies the binary carries the bridge feature, downloads the exact model onl
 if the model's sha256 does not match the published one, then runs the off and on arms and prints each answer next to
 the correct one. Full procedure, hashes, and the working-directory requirement are in [`RUNBOOK.md`](RUNBOOK.md).
 
-The binary is platform-specific (CUDA, `sm_121`). Build-from-source and portability are open work; see the runbook.
+**Runs on any machine.** Build for CPU with `cargo build --release --bin niodoo --no-default-features --features
+niodv4_bridge` (no GPU or CUDA toolkit needed), or for GPU with `--features niodv4_bridge` (NVIDIA + CUDA 13.x;
+set `NIODOO_CUDA_ARCH=sm_80` etc. for non-Blackwell GPUs). The GPU build is the canonical reproduction; CPU is
+functional but not bit-identical. Full build matrix and the run-from-repo-root requirement are in [`RUNBOOK.md`](RUNBOOK.md).
 
 ## What is here
 

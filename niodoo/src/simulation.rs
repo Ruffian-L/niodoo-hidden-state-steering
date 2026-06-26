@@ -824,7 +824,7 @@ pub(crate) async fn run_simulation(
         last_bridge_counter_step: -1,
         last_bridge_cooldown_step: -1,
         ghost_basins_loaded: 0,
-        last_prompt_hash: format!("{:x}", md5::compute(&args.prompt)),
+        last_prompt_hash: crate::main_helpers::sha256_hex(args.prompt.as_bytes()),
         last_nearest_ghost_id: None,
         last_nearest_ghost_distance: 0.0,
         last_second_nearest_ghost_distance: 0.0,
@@ -2741,7 +2741,7 @@ pub(crate) async fn run_simulation(
                 let mass_1d = all_mass.squeeze(1)?;
 
                 let accel =
-                    niodoo::gpu::nbody::nbody_pairwise_accel(&all_pos, &mass_1d, g_val, softening)
+                    niodoo::gpu::nbody_pairwise_accel(&all_pos, &mass_1d, g_val, softening)
                         .map_err(|e| {
                             candle_core::Error::Msg(format!("nbody_pairwise_accel: {e}"))
                         })?;

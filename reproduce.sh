@@ -71,6 +71,7 @@ run_arm(){ # name  outdir  extra-flags...
   local name="$1" d="$2"; shift 2; mkdir -p "$d"
   "$BIN" --model-path "$MODEL_PATH" --model-size 8b \
     --runtime-speed-profile eval-fast --stdout-profile telemetry --telemetry-profile full \
+    --require-cuda true \
     --seed 42 --temperature 0.0 --max-steps 256 \
     --prompt "$PROMPT" --telemetry-out "$d/telemetry.jsonl" "$@" \
     >"$d/stdout.txt" 2>"$d/stderr.txt"

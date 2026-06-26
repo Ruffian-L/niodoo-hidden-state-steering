@@ -11,9 +11,10 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1.0"
-candle-core = { git = "https://github.com/huggingface/candle.git", rev = "5447a8779871654e542e65693e7d26f1e33b215f", features = ["cuda"] }
-candle-nn = { git = "https://github.com/huggingface/candle.git", rev = "5447a8779871654e542e65693e7d26f1e33b215f", features = ["cuda"] }
-candle-transformers = { git = "https://github.com/huggingface/candle.git", rev = "5447a8779871654e542e65693e7d26f1e33b215f", features = ["cuda"] }
+# candle: CPU by default; CUDA is opt-in via this crate's `cuda` feature (see [features]).
+candle-core = { git = "https://github.com/huggingface/candle.git", rev = "5447a8779871654e542e65693e7d26f1e33b215f", default-features = false }
+candle-nn = { git = "https://github.com/huggingface/candle.git", rev = "5447a8779871654e542e65693e7d26f1e33b215f", default-features = false }
+candle-transformers = { git = "https://github.com/huggingface/candle.git", rev = "5447a8779871654e542e65693e7d26f1e33b215f", default-features = false }
 clap = { version = "4.6", features = ["derive", "env"] }
 safetensors = "0.4.5"
 half = "2.7.1"
@@ -34,7 +35,7 @@ rayon = "1.11"
 memmap2 = "0.9"
 bytemuck = "1.14"
 glam = "0.27"
-cudarc = { version = "0.17", features = ["runtime", "nvrtc", "cuda-13000"] }
+cudarc = { version = "0.17", features = ["runtime", "nvrtc", "cuda-13000"], optional = true }
 flate2 = "1.0"
 tantivy = "0.26"
 chrono = { version = "0.4", features = ["serde"] }
@@ -51,10 +52,8 @@ rusqlite = { version = "0.30", features = ["bundled"] }
 reqwest = { version = "0.11", features = ["json", "blocking"] }
 hf-hub = "0.3"
 native-tls = { version = "0.2", features = ["vendored"] }
-lophat = { version = "0.1", optional = true }
 bincode = "1.3"
 urlencoding = "2.1"
-md5 = "0.7"
 regex = "1"
 toml = "1.1.2"
 
@@ -62,10 +61,10 @@ toml = "1.1.2"
 serde_json = "1.0"
 
 [features]
+# GPU is the default so existing `cargo build` invocations are unchanged.
+# CPU-only machines build with `--no-default-features [--features niodv4_bridge]`.
 default = ["cuda"]
-cuda = []
-topology = ["dep:lophat"]
-full_library = ["topology"]
+cuda = ["dep:cudarc", "candle-core/cuda", "candle-nn/cuda", "candle-transformers/cuda"]
 niodv4_bridge = []
 
 [[bin]]

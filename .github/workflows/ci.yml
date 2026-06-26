@@ -1,0 +1,34 @@
+name: ci
+
+# Proves the portability claim (a clean machine with no GPU/CUDA builds the
+# runtime) and keeps dependency vulnerabilities at zero.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  cpu-build:
+    name: CPU build (no GPU, no CUDA toolkit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: niodoo
+      - name: cargo check (CPU, bridge on)
+        working-directory: niodoo
+        run: cargo check --bin niodoo --no-default-features --features niodv4_bridge
+
+  audit:
+    name: cargo audit (RustSec)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Audit dependencies
+        working-directory: niodoo
+        run: cargo audit

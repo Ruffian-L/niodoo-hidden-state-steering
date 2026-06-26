@@ -116,8 +116,23 @@ def extract(trap, region):
         return v, "leading-result"
 
 
+def _safe_path(path):
+    """Resolve a user-supplied answer-file path and confine it to the current
+    working directory tree (the scorer is always run from the repo root). This
+    closes the path-traversal sink on the open() below: a value coming from the
+    command line cannot escape the project directory."""
+    base = os.path.realpath(os.getcwd())
+    resolved = os.path.realpath(path)
+    if os.path.commonpath([base, resolved]) != base:
+        raise ValueError(f"refusing to read path outside the working directory: {path}")
+    if not os.path.isfile(resolved):
+        raise FileNotFoundError(resolved)
+    return resolved
+
+
 def score_file(path):
-    text = open(path, encoding="utf-8", errors="replace").read()
+    with open(_safe_path(path), encoding="utf-8", errors="replace") as fh:
+        text = fh.read()
     regs = regions(text)
     rows = []
     for trap in TRAPS:

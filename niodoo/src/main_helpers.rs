@@ -332,7 +332,7 @@ pub(crate) struct RuntimeHiddenCaptureRecord {
     pub(crate) hidden_shape: Vec<usize>,
     pub(crate) hidden_dtype: String,
     pub(crate) hidden_path: String,
-    pub(crate) hidden_checksum_md5: String,
+    pub(crate) hidden_checksum_sha256: String,
     pub(crate) hidden_norm: f32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) hidden_64d_method: Option<String>,
@@ -987,12 +987,25 @@ pub(crate) fn write_f32_binary(path: &Path, values: &[f32]) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn checksum_f32_le_md5(values: &[f32]) -> String {
+/// Lowercase hex SHA-256 of an arbitrary byte slice. Used for non-cryptographic
+/// content fingerprints / diagnostic identifiers (prompt hashes, checksums).
+pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    use std::fmt::Write as _;
+    let digest = Sha256::digest(bytes);
+    let mut out = String::with_capacity(digest.len() * 2);
+    for b in digest {
+        let _ = write!(out, "{b:02x}");
+    }
+    out
+}
+
+pub(crate) fn checksum_f32_le_sha256(values: &[f32]) -> String {
     let mut bytes = Vec::with_capacity(values.len() * std::mem::size_of::<f32>());
     for value in values {
         bytes.extend_from_slice(&value.to_le_bytes());
     }
-    format!("{:x}", md5::compute(bytes))
+    sha256_hex(&bytes)
 }
 
 pub(crate) fn latest_hinge_window_scalars(engine: &PrincipiaEngine) -> (f32, f32, Option<String>) {
@@ -1059,7 +1072,7 @@ pub(crate) fn write_runtime_hidden_capture(
     })?;
     let vector_path = runtime_hidden_capture_vector_path(base_dir, turn_index, step);
     write_f32_binary(&vector_path, &hidden_vec)?;
-    let hidden_checksum_md5 = checksum_f32_le_md5(&hidden_vec);
+    let hidden_checksum_sha256 = checksum_f32_le_sha256(&hidden_vec);
 
     let hidden_norm = hidden_vec
         .iter()
@@ -1087,7 +1100,7 @@ pub(crate) fn write_runtime_hidden_capture(
         runtime_mode: args.runtime_mode.as_str().to_string(),
         req_id: args.req_id.clone(),
         prompt_id: format!("{}::turn_{turn_index:04}", args.req_id),
-        prompt_hash: format!("{:x}", md5::compute(prompt.as_bytes())),
+        prompt_hash: sha256_hex(prompt.as_bytes()),
         seed: args.seed,
         model_path: args.model_path.clone(),
         capture_artifact_dir: base_dir.display().to_string(),
@@ -1100,7 +1113,7 @@ pub(crate) fn write_runtime_hidden_capture(
         hidden_shape,
         hidden_dtype: "f32_le".to_string(),
         hidden_path: vector_path.display().to_string(),
-        hidden_checksum_md5,
+        hidden_checksum_sha256,
         hidden_norm,
         hidden_64d_method: Some(hidden_64d_method.to_string()),
         hidden_64d,

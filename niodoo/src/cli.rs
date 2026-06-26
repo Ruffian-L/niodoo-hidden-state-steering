@@ -248,7 +248,11 @@ pub(crate) struct Args {
     #[arg(long, default_value_t = false)]
     pub(crate) bridge_off: bool,
 
-    #[arg(long, action = clap::ArgAction::Set, default_value_t = true)]
+    /// Require a working CUDA device; if true, abort instead of falling back to
+    /// CPU. Defaults to false so the runtime is portable (runs on any machine,
+    /// CPU-only included). The canonical GPU reproduction (reproduce.sh) passes
+    /// `--require-cuda true` so a missing/misconfigured GPU fails loudly there.
+    #[arg(long, action = clap::ArgAction::Set, default_value_t = false)]
     pub(crate) require_cuda: bool,
 
     #[arg(long, default_value_t = false)]

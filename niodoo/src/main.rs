@@ -120,7 +120,12 @@ pub const NIODOO_GHOST_GRAVITY: f32 = 10.0; // The "Topic" Anchor
 pub const NIODOO_REPULSION: f32 = -0.60; // The "Anti-Boring" Field
 /// stamp target ids as lowercase route ids such as `tn_count_e`.
 fn main() -> Result<()> {
-    std::env::set_var("CUDA_VISIBLE_DEVICES", "0");
+    // Default to GPU 0, but never override a device selection the user already
+    // made (multi-GPU hosts set CUDA_VISIBLE_DEVICES themselves). Harmless no-op
+    // on CPU-only machines.
+    if std::env::var_os("CUDA_VISIBLE_DEVICES").is_none() {
+        std::env::set_var("CUDA_VISIBLE_DEVICES", "0");
+    }
     let mut args = Args::parse();
     args.gate34_target_source = args.gate34_target_source.to_ascii_lowercase();
     if args.gate34_target_source != "motifs"

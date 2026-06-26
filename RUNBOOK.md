@@ -32,15 +32,36 @@ eight-prompt table from the whitepaper:
 
 ## Build the binary
 
-The binary is not committed (it is platform-specific). Build it from the crate:
+The binary is not committed (it is platform-specific). Build it from the crate. A recent Rust toolchain
+(`rustup`, stable) is the only hard requirement.
+
+### GPU build (canonical reproduction — needs an NVIDIA GPU + CUDA toolkit)
 
 ```bash
 cd niodoo
 cargo build --release --bin niodoo --features niodv4_bridge
 ```
 
-Requirements: a CUDA toolchain. The build compiles a CUDA kernel for `sm_121` (Blackwell). On other GPUs, adjust
-`TARGET_ARCH` in `niodoo/build.rs`; the runtime also has an NVRTC fallback. CPU-only operation is not supported yet.
+Requirements: the CUDA toolkit (`nvcc`, CUDA 13.x) and an NVIDIA GPU. The kernel is AOT-compiled for `sm_121`
+(Blackwell / GB10) by default. **On a different NVIDIA GPU, set the arch** before building, e.g. Ampere:
+
+```bash
+NIODOO_CUDA_ARCH=sm_80 cargo build --release --bin niodoo --features niodv4_bridge   # sm_86 / sm_89 / sm_90 …
+```
+
+(If `nvcc` is missing the build still succeeds and the runtime JIT-compiles kernels via NVRTC for the live device.)
+
+### CPU build (runs on any machine — no GPU, no CUDA toolkit)
+
+```bash
+cd niodoo
+cargo build --release --bin niodoo --no-default-features --features niodv4_bridge
+```
+
+This drops `cudarc` and builds candle for CPU; no NVIDIA hardware or CUDA libraries are needed. The binary runs on
+CPU automatically (`--require-cuda` defaults to `false`). CPU is **functional, not the canonical reproduction** —
+results can differ from the GPU run at the last bits of float precision, and it is slower. Use the GPU build to
+reproduce the published numbers.
 
 ## Gotchas (these caused the recurring "it's broken")
 
@@ -63,4 +84,5 @@ wrong answer; on lands the right one on the corrected prompts (see `claim_card.m
 
 - A true vanilla baseline: raw llama.cpp on the same prompts. `--bridge-off` is Niodoo with the bridge disabled, not vanilla.
 - Seed robustness: only seed 42, temperature 0 has been run.
-- Portability: CUDA `sm_121` is hardcoded in the kernel build; CPU and other-arch paths are open work.
+- Portability: CPU builds (`--no-default-features`) and other NVIDIA archs (`NIODOO_CUDA_ARCH`) now build and run.
+  The published numbers are still pinned to the GPU `sm_121` reproduction; CPU/other-arch parity is not yet characterized.

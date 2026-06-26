@@ -21,6 +21,46 @@ pub mod rips;
 #[cfg(test)]
 mod test_integration;
 
+// N-body pairwise acceleration. With the `cuda` feature this is the fused CUDA
+// kernel (nbody::nbody_pairwise_accel); without it, a candle CPU implementation
+// with identical math so the runtime builds and runs on any machine.
+#[cfg(feature = "cuda")]
+pub use nbody::nbody_pairwise_accel;
+
+/// CPU fallback for the fused CUDA n-body kernel. Same math as `kernels.cu`:
+///   accel[i][k] = G * sum_{j != i} m_j * (pos[j][k] - pos[i][k]) / dist(i,j)^3
+///   dist(i,j)   = sqrt(softening + sum_k (pos[j][k] - pos[i][k])^2)
+/// Computed one row at a time to avoid materializing an [N, N, D] intermediate.
+/// (CPU results may differ from the CUDA reproduction at the last bits of float
+/// precision; the GPU path remains the canonical reproduction — see RUNBOOK.)
+#[cfg(not(feature = "cuda"))]
+pub fn nbody_pairwise_accel(
+    pos: &candle_core::Tensor,
+    mass: &candle_core::Tensor,
+    g: f32,
+    softening: f32,
+) -> anyhow::Result<candle_core::Tensor> {
+    use candle_core::{DType, Tensor};
+    let pos = pos.to_dtype(DType::F32)?;
+    let mass = mass.to_dtype(DType::F32)?;
+    let (n, _d) = pos.dims2()?;
+    let soft = softening as f64;
+    let mut rows = Vec::with_capacity(n);
+    for i in 0..n {
+        let pi = pos.narrow(0, i, 1)?; // [1, D]
+        let diff = pos.broadcast_sub(&pi)?; // [N, D] = pos[j] - pos[i]
+        let dist2 = diff.sqr()?.sum(1)?.affine(1.0, soft)?; // [N] softened
+        let dist = dist2.sqrt()?; // [N]
+        let dist3 = (&dist * &dist)?.mul(&dist)?; // [N] = dist^3
+        // w_j = m_j / dist3_j; the self term (j == i) is zero because diff == 0.
+        let w = (&mass / &dist3)?.unsqueeze(1)?; // [N, 1]
+        let contrib = diff.broadcast_mul(&w)?; // [N, D]
+        rows.push(contrib.sum(0)?); // [D]
+    }
+    let accel = Tensor::stack(&rows, 0)?.affine(g as f64, 0.0)?; // [N, D] * G
+    Ok(accel)
+}
+
 use crate::indexing::TopologicalFingerprint;
 use crate::tivm::SplatRagConfig;
 use crate::SplatInput;

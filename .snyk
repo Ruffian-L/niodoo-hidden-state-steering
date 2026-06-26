@@ -1,0 +1,15 @@
+# Snyk policy file — https://docs.snyk.io/snyk-cli/test-for-vulnerabilities/the-.snyk-file
+# Provenance: decisions, not just dates (see STANDARDS.md).
+version: v1.25.0
+
+# Snyk Code (SAST) exclusions.
+exclude:
+  code:
+    # harness/score_answers.py is a LOCAL developer scoring tool, run by hand from
+    # the repo root over answer-transcript files the developer themselves passes on
+    # the command line. Snyk flags `argv -> open()` as Path Traversal (CWE-23), which
+    # is intrinsic to any file-processing CLI. The code is nonetheless hardened: the
+    # path is realpath-resolved and confined to the working-directory tree
+    # (see _safe_path). There is no service boundary and no untrusted input, so this
+    # is an accepted, reviewed false-positive — not a runtime vulnerability.
+    - harness/score_answers.py
