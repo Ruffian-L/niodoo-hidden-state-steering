@@ -41,6 +41,7 @@ pub mod smoke_test;
 pub mod specialist;
 pub mod specialist_bank;
 pub mod startup_log;
+pub mod tede_corrector;
 
 pub use codebook::CodebookVQ;
 pub use correction_packets::{
