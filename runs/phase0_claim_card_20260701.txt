@@ -1,0 +1,15 @@
+[ok] binary has bridge feature (4 marker hits)
+[ok] basin registry present
+[..] verifying model sha256 (~30s)
+[ok] model verified == bartowski Q5_K_M
+
+############### NIODOO CLAIM CARD ###############
+prompt        : How many times does the letter r appear in the word strawberry? Give the final number only.
+correct answer: 3
+model         : Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf (bartowski, sha256 verified)
+------------------------------------------------
+  OFF  | basins=0  | <no answer parsed>
+  ON   | basins=8  | <no answer parsed>
+------------------------------------------------
+Expect: ON lands '3' where OFF does not; basins=8 when ON, 0 when OFF.
+raw outputs: /tmp/user/1000/tmp.u299vpWU2f

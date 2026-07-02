@@ -1,5 +1,7 @@
 # Niodoo
 
+**Built with Llama.** (Llama 3.1 — see `NOTICE.md` and `licenses/LLAMA-3.1-COMMUNITY-LICENSE.txt`.)
+
 A small local runtime that runs alongside a frozen language model and steers it. It is not a model, and it does not
 retrain weights. This repository contains one narrow, reproducible result and the runtime behind it.
 
@@ -106,3 +108,13 @@ telling you it is not running the published configuration.
 ## Contact
 
 Questions, corrections, or if you think something here is wrong: jasonvanpham@niodoo.com
+
+## Licensing & attribution
+
+- Project code: MIT (`LICENSE`). Collaboration record: `CREDITS.md`.
+- **Built with Llama.** `model/tokenizer.json` is redistributed Llama 3.1 material — Llama 3.1 is licensed under the Llama 3.1 Community License, Copyright © Meta Platforms, Inc. All Rights Reserved (`NOTICE.md`, `licenses/LLAMA-3.1-COMMUNITY-LICENSE.txt`). Model weights are downloaded at run time, sha256-verified, not stored here.
+- Rust dependency attribution (615 crates): `THIRD_PARTY_LICENSES.md`, regenerable via `scripts/generate_third_party_licenses.py`.
+
+## Update — 2026-07-01: the runtime prompt divergence, found and fixed
+
+The 2026-06-24 update above measured the regression; `runs/phase0_narration_diag.md` now pins the mechanism. The public tree shipped a rewritten runtime system prompt whose contract language went soft ("visible emission is optional") — at temperature 0 the model stops emitting `[REQUEST: …]` tags and `VISIBLE/WORKING ANSWER:` markers entirely, so nothing parses and generation never stops cleanly. Restoring the original imperative prompt (this commit) reproduces the published claim card exactly on the same binary: bridge-off answers 2 (wrong), bridge-on answers 3 with `[REQUEST: LOCK]`. Full diagnostic with raw outputs in `runs/`.
