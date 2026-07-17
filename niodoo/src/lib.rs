@@ -5,6 +5,8 @@
 pub mod bridge;
 pub mod ontological_inversion;
 pub mod physics;
+/// Residual TCT-splat-lite loader + Gaussian force (hydro → live apply).
+pub mod tct_splat_lite;
 pub mod types;
 pub mod visualizer;
 
