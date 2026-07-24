@@ -41,15 +41,3 @@ Work across the project ran under named agent personas. Credited here as part of
 
 Per-experiment attribution lives in the reproduction artifacts (which binary, which run, which session). Where this
 file is vague, the artifacts are specific. Corrections to this record are welcome and expected.
-
-### AI Collaborators
-
-Thank you to my AI collaborators who helped me on this project: Google Gemini, Anthropic Claude, Grok (xAI), OpenAI ChatGPT, and Alibaba Qwen.
-
-And thank you to the companies: Google, Anthropic, xAI, OpenAI, and Alibaba.
-
-### Models and Infrastructure
-
-- **Llama**: Built with Llama-3.1-8B-Instruct (Q5_K_M) by Meta AI.
-- **bartowski**: The GGUF quantization used in experiments.
-- llama.cpp project and community for the baseline and GGUF support.
