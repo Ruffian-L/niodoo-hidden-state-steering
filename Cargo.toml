@@ -1,0 +1,3 @@
+[workspace]
+members = ["niodoo", "niodoo_chat"]
+resolver = "2"

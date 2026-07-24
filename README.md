@@ -5,6 +5,8 @@
 A small local runtime that runs alongside a frozen language model and steers it. It is not a model, and it does not
 retrain weights. This repository contains one narrow, reproducible result and the runtime behind it.
 
+> Updated 07/06/2026: added attributions and thank yous.
+
 Status: not polished, actively worked on. The result here runs end to end. The wider system does not yet.
 
 ## Update — 2026-06-24: vanilla control run, and a measured regression
@@ -118,3 +120,18 @@ Questions, corrections, or if you think something here is wrong: jasonvanpham@ni
 ## Update — 2026-07-01: the runtime prompt divergence, found and fixed
 
 The 2026-06-24 update above measured the regression; `runs/phase0_narration_diag.md` now pins the mechanism. The public tree shipped a rewritten runtime system prompt whose contract language went soft ("visible emission is optional") — at temperature 0 the model stops emitting `[REQUEST: …]` tags and `VISIBLE/WORKING ANSWER:` markers entirely, so nothing parses and generation never stops cleanly. Restoring the original imperative prompt (this commit) reproduces the published claim card exactly on the same binary: bridge-off answers 2 (wrong), bridge-on answers 3 with `[REQUEST: LOCK]`. Full diagnostic with raw outputs in `runs/`.
+
+## Chat TUI (human levers — stop surface 2026-07-24)
+
+Playable chat without reverse-engineering CLI source:
+
+- **Levers + vocab:** [`docs/LEVERS_AND_VOCAB.md`](docs/LEVERS_AND_VOCAB.md)
+- **Binary:** `niodoo_chat` crate → `niodoo-chat`
+- **Presets:** `niodoo_chat/presets/*.json` (five playable modes)
+- **Personas:** `/persona shep|echo|lumina` (fixtures + ghost homes when mounted)
+
+```bash
+cd niodoo_chat && cargo run --release --bin niodoo-chat
+```
+
+Heavy physics surgery stops here for day-to-day play; use RUNBOOK for GPU battery reproduction.
