@@ -1,6 +1,6 @@
 # Authorship & Provenance
 
-Multi-party research collaboration. Negative and inconclusive results retained for reproducibility.
+Multi-party research collaboration.
 
 | Role | Name |
 |------|------|
