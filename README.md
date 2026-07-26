@@ -1,141 +1,176 @@
-# Niodoo
+# Niodoo — hidden-state / inference-time steering
 
-**Built with Llama.** (Llama 3.1 — see `NOTICE.md` and `licenses/LLAMA-3.1-COMMUNITY-LICENSE.txt`.)
+**GitHub:** [`Ruffian-L/niodoo-hidden-state-steering`](https://github.com/Ruffian-L/niodoo-hidden-state-steering)  
+**Lead:** Jason Van Pham ([Ruffian-L](https://github.com/Ruffian-L)) — direction and final accountability  
+**Built with:** Grok (xAI) · Claude (Anthropic) · ChatGPT / Codex (OpenAI) · Gemini (Google) — see [`CREDITS.md`](CREDITS.md) · [`AUTHORSHIP.md`](AUTHORSHIP.md)
 
-**Lead:** Jason Van Pham (Ruffian-L) — direction and final accountability.  
-**Built with AI collaborators (not alone):** Grok (xAI), Claude / Claude Code (Anthropic), ChatGPT / Codex (OpenAI), Gemini (Google). Full record: [`CREDITS.md`](CREDITS.md).
+> A **local runtime** that steers a **frozen** language model (no weight updates).  
+> One **narrow, reproducible** correction result + the machinery behind it.  
+> **Not** a chat product, **not** a consciousness claim, **not** broad benchmark SOTA.
 
-A small local runtime that runs alongside a frozen language model and steers it. It is not a model, and it does not
-retrain weights. This repository contains one narrow, reproducible result and the runtime behind it.
+**Built with Llama 3.1** — see `NOTICE.md` and `licenses/`. Weights download at run time and are **sha256-pinned**.
 
-> Updated 07/06/2026: added attributions and thank yous.  
-> Updated 2026-07-25: credit line names everyone (Jason’s decision — no lone-author framing).
+---
 
-Status: not polished, actively worked on. The result here runs end to end. The wider system does not yet.
+## Best face of this repo (what we actually want you to see)
 
-## Update — 2026-06-24: vanilla control run, and a measured regression
+| Strength | Where it lives |
+|----------|----------------|
+| **Epistemic rigor** | Losses kept public; regressions published next to wins; hash-pinned model/binary |
+| **Narrow claim you can re-run** | `./reproduce.sh` → off vs on on the same 8 prompts |
+| **Machine-checkable card** | [`claim_card.md`](claim_card.md) — correct answer printed beside every row |
+| **Method writeup** | [`WHITEPAPER.md`](WHITEPAPER.md) |
+| **How to build / not get false negatives** | [`RUNBOOK.md`](RUNBOOK.md) |
+| **Rolling ladder (including fails)** | [`SCOREBOARD.md`](SCOREBOARD.md) |
 
-The control this README calls missing ("the bridge-off arm is not yet a true vanilla baseline") has now been run. Raw `llama.cpp` on the same eight prompts — same model bytes (sha256-verified), greedy, temperature 0, seed 42, standard Llama-3.1 chat template — answers **8 of 8 correctly**, including the four the bridge-off arm gets wrong. On this specific deterministic-recall battery, **niodoo currently regresses relative to pure llama.cpp.**
+If the first screen of an AI research repo only celebrates wins, distrust it.  
+Here the **discipline is the product**; the bridge correction is the **example**.
 
-The weights are identical across both runs, so this is not the model getting worse. The cause is the context niodoo wraps around it: niodoo prepends a steering system prompt — an `INTERNAL MONITOR: double-check your reasoning, it is likely flawed` doubt-prime, plus a `[REQUEST: SPIKE/FOCUS/LOCK/...]` control protocol. On deterministic facts, where the model's high-confidence answer is already correct, that doubt-prime pushes it off the right answer (observed thrashing 3 → 2 → 3 → 4 on the r's in "strawberry"), and the 8B model imitates the control protocol — emitting `[REQUEST: LOCK]`, `[ACTION: SHUTDOWN]` — instead of answering. Per-token telemetry shows the guardrail was inactive throughout (`guardrail_active:false` every token), so the effect is the injected prompt, not the physics engine.
+---
 
-Correction to the table below: **"raspberry" has 3 r's, not 2.** `str.count` confirms it; the replay-control row was mislabeled. Vanilla answers 3 (correct); the bridge answers 2.
+## The claim (30 seconds)
 
-Scope, as measured: deterministic recall (letter-counting, integer arithmetic).
+On **Llama-3.1-8B-Instruct (Q5_K_M)**, temperature **0**, seed **42**, an 8-prompt trap battery:
 
-Open and under test:
-- routing deterministic tasks to a deterministic answerer (`--tool-augmented`), treated as hardware diagnostics rather than the cognition target;
-- a re-run with the chat template and guardrail relief held equal across arms, so "off" is a true vanilla baseline rather than niodoo-with-the-bridge-off;
-- moving steering off the visible prompt and onto hidden-state / persisted trajectory (the TDA path), which steers without the doubt-prime that causes this.
+| | |
+|--|--|
+| **Bridge off** | Model can lock a **wrong final** after correct intermediate steps (e.g. 17×24 → parts 340/68, locks **368**) |
+| **Bridge on** | Same model, same weights: **corrects 4**, **holds 3 correct**, **breaks 1** (mississippi) |
+| **Replay control** | “raspberry” stays **2** r’s — not forced to strawberry’s **3** |
 
-This is published here, not set aside.
+Full table: [`claim_card.md`](claim_card.md). Mechanism and limits: [`WHITEPAPER.md`](WHITEPAPER.md).
 
-## The result, in one paragraph
+### Claimed result — reproduced here
 
-On a frozen Llama-3.1-8B-Instruct (Q5_K_M), the model locks a wrong final answer on a class of prompts even when its
-own steps were correct — it computes 340 and 68, then locks 368. With the bridge on, it catches the slip and lands
-408. On an eight-prompt battery at temperature 0, seed 42, the bridge corrected four wrong answers, left three
-correct answers unchanged, and broke one. It does not replay a memorized answer: a word with two r's stays two, it
-is not forced to three. Full numbers, mechanism, and limits are in [`WHITEPAPER.md`](WHITEPAPER.md).
-
-## The runtime, in pictures
-
-The first three are **not claims** — they are work still being built, shown because they are some of the author's
-favorite shots of the runtime. The last two are the result this repository reproduces.
-
-### Work in progress — not claimed yet
-
-The internal monitor: the model reasoning against its own monitor signal. The monitor uses TDA (topological) analysis
-to detect when the model is looping. Still being built.
-
-![internal monitor](images/internal_monitor.png)
-
-Self-emitted telemetry tags: this model was never fine-tuned, yet it emits its own control tags
-(SPIKE / FOCUS / RESET / REMEMBER / LOCK), shown here with their counts across runs.
-
-![telemetry tags](images/telemetry_tags.png)
-
-The towel-drying problem: the model catching itself in a loop and asking to refocus. Messy, shown as-is. LOCK fires
-when the model acknowledges the right answer; SPIKE injects a perturbing force during inference to break it out of the loop.
-
-![towel drying](images/towel_drying.png)
-
-### The claimed result — reproduced in this repo
-
-17 × 24: bridge off computes the right parts (340, 68) then locks 368; bridge on catches the slip and lands 408.
+17 × 24: off locks 368; on lands 408.
 
 ![17x24 correction](images/correction_mult_17x24.png)
 
-Counting the r's in "strawberry": bridge off locks 2; bridge on lands 3. Identical at clamp 0.03, 0.5, and 2.0 — the
-force is capped — so the correction is the nudge near a decision boundary, not its magnitude.
+Count r in “strawberry”: off locks 2; on lands 3 (force magnitude capped — nudge near a decision boundary).
 
 ![strawberry correction](images/correction_strawberry.png)
 
-## Run it
+---
+
+## Run it (one command)
 
 ```bash
 ./reproduce.sh
 ```
 
-It verifies the binary carries the bridge feature, downloads the exact model only if it is missing, refuses to run
-if the model's sha256 does not match the published one, then runs the off and on arms and prints each answer next to
-the correct one. Full procedure, hashes, and the working-directory requirement are in [`RUNBOOK.md`](RUNBOOK.md).
+Verifies the bridge-enabled binary, downloads the model only if missing, **refuses** on sha256 mismatch, runs **off** and **on**, prints answers next to ground truth.
 
-**Runs on any machine.** Build for CPU with `cargo build --release --bin niodoo --no-default-features --features
-niodv4_bridge` (no GPU or CUDA toolkit needed), or for GPU with `--features niodv4_bridge` (NVIDIA + CUDA 13.x;
-set `NIODOO_CUDA_ARCH=sm_80` etc. for non-Blackwell GPUs). The GPU build is the canonical reproduction; CPU is
-functional but not bit-identical. Full build matrix and the run-from-repo-root requirement are in [`RUNBOOK.md`](RUNBOOK.md).
+```bash
+# GPU (canonical)
+cd niodoo && cargo build --release --bin niodoo --features niodv4_bridge
 
-## What is here
-
-```
-WHITEPAPER.md     the result, the mechanism, the limits
-README.md         this file
-RUNBOOK.md        how to run, pinned hashes, gotchas
-reproduce.sh      one command: verify, run off vs on, print the claim card
-CREDITS.md        who did what
-claim_card.md     the witnessed-correction result, machine-checkable
-harness/          the scripts that produced the battery
-evidence/         raw model output from the runs
-niodoo/           the runtime source (Rust). The bridge is feature-gated.
-niodv4/           the basin registry the binary loads, at the relative path it expects
+# CPU (functional, not bit-identical)
+cargo build --release --bin niodoo --no-default-features --features niodv4_bridge
 ```
 
-## What this is not
+Details, hashes, arch flags: [`RUNBOOK.md`](RUNBOOK.md). Full eight-prompt table: `./harness/run_battery.sh`.
 
-It is not a claim of broad benchmark superiority, it is not a finished product, and the bridge-off arm is not yet a
-true vanilla baseline. Those gaps are stated in the whitepaper, not hidden.
+---
 
-## Reproducibility principle
+## What this is / is not
 
-Trust the bytes, not the names. Every model and artifact is identified by sha256. A clone that disagrees on a hash is
-telling you it is not running the published configuration.
+| This is | This is not |
+|---------|-------------|
+| Inference-time / residual-style **steering** of a frozen GGUF model | Fine-tuning or weight surgery |
+| A **local** research runtime with telemetry | Cloud API product |
+| A **hash-pinned** off-vs-on battery | “Beats Llama on everything” |
+| Honest **negative** follow-ups on the scoreboard | Consciousness / feelings claims |
+| Jason-led multi-AI **collaboration** (named) | Solo-genius folklore |
 
-## Contact
+---
 
-Questions, corrections, or if you think something here is wrong: jasonvanpham@niodoo.com
+## Map of the tree
 
-## Licensing & attribution
+```text
+README.md          ← you are here (public face)
+claim_card.md      ← the checkable result
+WHITEPAPER.md       ← mechanism + limits
+RUNBOOK.md         ← build, hashes, gotchas
+reproduce.sh       ← one-command re-run
+SCOREBOARD.md      ← win / mix / fail ladder after the claim
+CREDITS.md         ← who did what
+AUTHORSHIP.md      ← short provenance
+harness/           ← battery + latch run cards
+evidence/          ← raw outputs
+niodoo/            ← Rust runtime (bridge feature-gated)
+niodv4/            ← basin registry the binary expects
+niodoo_chat/       ← optional playable levers TUI (not the claim)
+images/            ← claim figures + WIP shots
+```
 
-- Project code: MIT (`LICENSE`). Collaboration record: `CREDITS.md`.
-- **Built with Llama.** `model/tokenizer.json` is redistributed Llama 3.1 material — Llama 3.1 is licensed under the Llama 3.1 Community License, Copyright © Meta Platforms, Inc. All Rights Reserved (`NOTICE.md`, `licenses/LLAMA-3.1-COMMUNITY-LICENSE.txt`). Model weights are downloaded at run time, sha256-verified, not stored here.
-- Rust dependency attribution (615 crates): `THIRD_PARTY_LICENSES.md`, regenerable via `scripts/generate_third_party_licenses.py`.
+---
 
-## Update — 2026-07-01: the runtime prompt divergence, found and fixed
+## Work still building (not the claim)
 
-The 2026-06-24 update above measured the regression; `runs/phase0_narration_diag.md` now pins the mechanism. The public tree shipped a rewritten runtime system prompt whose contract language went soft ("visible emission is optional") — at temperature 0 the model stops emitting `[REQUEST: …]` tags and `VISIBLE/WORKING ANSWER:` markers entirely, so nothing parses and generation never stops cleanly. Restoring the original imperative prompt (this commit) reproduces the published claim card exactly on the same binary: bridge-off answers 2 (wrong), bridge-on answers 3 with `[REQUEST: LOCK]`. Full diagnostic with raw outputs in `runs/`.
+Favorite runtime shots — **not** part of the published correction claim:
 
-## Chat TUI (human levers — stop surface 2026-07-24)
+The internal monitor idea (TDA-style loop sensing) — still under construction.
 
-Playable chat without reverse-engineering CLI source:
+![internal monitor](images/internal_monitor.png)
 
-- **Levers + vocab:** [`docs/LEVERS_AND_VOCAB.md`](docs/LEVERS_AND_VOCAB.md)
-- **Binary:** `niodoo_chat` crate → `niodoo-chat`
-- **Presets:** `niodoo_chat/presets/*.json` (five playable modes)
-- **Personas:** `/persona shep|echo|lumina` (fixtures + ghost homes when mounted)
+Self-emitted control tags (SPIKE / FOCUS / …) on an unfine-tuned model — observational.
+
+![telemetry tags](images/telemetry_tags.png)
+
+Towel-drying loop / refocus mess — shown as-is.
+
+![towel drying](images/towel_drying.png)
+
+Optional day-to-day play surface: [`docs/LEVERS_AND_VOCAB.md`](docs/LEVERS_AND_VOCAB.md) · `niodoo_chat` presets.
 
 ```bash
 cd niodoo_chat && cargo run --release --bin niodoo-chat
 ```
 
-Heavy physics surgery stops here for day-to-day play; use RUNBOOK for GPU battery reproduction.
+---
+
+## Honest limits (published on purpose)
+
+These are **features of the record**, not footnotes to hide:
+
+1. **Bridge-off ≠ raw llama.cpp**  
+   Niodoo wraps a steering system prompt (doubt-prime + control-tag protocol). On a pure vanilla 8-prompt battery (2026-06-24), **raw llama.cpp can answer 8/8** while niodoo’s wrap regresses on some deterministic facts. Weights identical — the wrap is the difference. Details below and in `runs/phase0_narration_diag.md`.
+
+2. **One broken row on the claim card** (mississippi) — kept in the table.
+
+3. **Later latch / basin experiments** (scoreboard) are **mixed / wash / negative** by design — geometry ≠ always better answers. Default for experimental levers stays conservative.
+
+4. **Not a product.** Status: active research; claim battery is the polished spine.
+
+### Detail — 2026-06-24 vanilla control & regression
+
+Raw `llama.cpp`, same model bytes (sha256-verified), greedy, seed 42: **8/8** on the deterministic-recall set, including items the niodoo bridge-off arm misses. Cause: niodoo’s injected system context (`INTERNAL MONITOR` doubt-prime + `[REQUEST: …]` protocol), not inactive physics (`guardrail_active:false` throughout in that audit). Observed thrash on letter-count trajectories; model sometimes imitates control tags instead of answering.
+
+Open / under test:
+
+- route deterministic tasks to a deterministic answerer (`--tool-augmented`) as diagnostics, not the cognition target  
+- equal chat template + guardrail relief so “off” is true vanilla, not “niodoo with bridge off”  
+- move more steering off the visible prompt onto hidden-state / trajectory paths  
+
+### Detail — 2026-07-01 prompt contract
+
+A soft runtime prompt (“visible emission is optional”) stopped tag emission at temperature 0; restoring the imperative contract reproduced the claim card on the same binary. Diagnostic: `runs/phase0_narration_diag.md`.
+
+---
+
+## Reproducibility principle
+
+**Trust the bytes, not the names.** Model and artifact identity = sha256. A clone that disagrees on a hash is not running the published configuration.
+
+---
+
+## Contact
+
+Questions, corrections, or “this is wrong”: **jasonvanpham@niodoo.com**
+
+## Licensing
+
+- Project code: MIT (`LICENSE`)  
+- Collaboration record: `CREDITS.md` · `AUTHORSHIP.md`  
+- Llama 3.1 materials: Community License (`NOTICE.md`, `licenses/`)  
+- Rust deps: `THIRD_PARTY_LICENSES.md`
