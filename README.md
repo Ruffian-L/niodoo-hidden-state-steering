@@ -2,10 +2,14 @@
 
 **Built with Llama.** (Llama 3.1 — see `NOTICE.md` and `licenses/LLAMA-3.1-COMMUNITY-LICENSE.txt`.)
 
+**Lead:** Jason Van Pham (Ruffian-L) — direction and final accountability.  
+**Built with AI collaborators (not alone):** Grok (xAI), Claude / Claude Code (Anthropic), ChatGPT / Codex (OpenAI), Gemini (Google). Full record: [`CREDITS.md`](CREDITS.md).
+
 A small local runtime that runs alongside a frozen language model and steers it. It is not a model, and it does not
 retrain weights. This repository contains one narrow, reproducible result and the runtime behind it.
 
-> Updated 07/06/2026: added attributions and thank yous.
+> Updated 07/06/2026: added attributions and thank yous.  
+> Updated 2026-07-25: credit line names everyone (Jason’s decision — no lone-author framing).
 
 Status: not polished, actively worked on. The result here runs end to end. The wider system does not yet.
 
