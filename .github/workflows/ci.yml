@@ -29,6 +29,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
+      # Audit from the workspace root: Cargo.lock there is the one cargo
+      # actually resolves for both members. niodoo/Cargo.lock was a pre-workspace
+      # leftover that cargo no longer updated, so it drifted and reported stale
+      # versions.
       - name: Audit dependencies
-        working-directory: niodoo
         run: cargo audit

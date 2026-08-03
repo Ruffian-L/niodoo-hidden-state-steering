@@ -12,19 +12,17 @@
 
 ---
 
-## Best face of this repo (what we actually want you to see)
+## Where things are
 
-| Strength | Where it lives |
-|----------|----------------|
-| **Epistemic rigor** | Losses kept public; regressions published next to wins; hash-pinned model/binary |
-| **Narrow claim you can re-run** | `./reproduce.sh` → off vs on on the same 8 prompts |
-| **Machine-checkable card** | [`claim_card.md`](claim_card.md) — correct answer printed beside every row |
-| **Method writeup** | [`WHITEPAPER.md`](WHITEPAPER.md) |
-| **How to build / not get false negatives** | [`RUNBOOK.md`](RUNBOOK.md) |
-| **Rolling ladder (including fails)** | [`SCOREBOARD.md`](SCOREBOARD.md) |
+| What | Where |
+|------|-------|
+| Re-run the claim yourself | `./reproduce.sh` → off vs on on the same 8 prompts |
+| Every row with its correct answer printed beside it | [`claim_card.md`](claim_card.md) |
+| Method and limits | [`WHITEPAPER.md`](WHITEPAPER.md) |
+| Build steps and how to avoid false negatives | [`RUNBOOK.md`](RUNBOOK.md) |
+| Full run ladder, including the failures | [`SCOREBOARD.md`](SCOREBOARD.md) |
 
-If the first screen of an AI research repo only celebrates wins, distrust it.  
-Here the **discipline is the product**; the bridge correction is the **example**.
+Losses are published next to wins. The model and binary are sha256-pinned.
 
 ---
 
@@ -99,7 +97,6 @@ harness/           ← battery + latch run cards
 evidence/          ← raw outputs
 niodoo/            ← Rust runtime (bridge feature-gated)
 niodv4/            ← basin registry the binary expects
-niodoo_chat/       ← optional playable levers TUI (not the claim)
 images/            ← claim figures + WIP shots
 ```
 
@@ -121,11 +118,7 @@ Towel-drying loop / refocus mess — shown as-is.
 
 ![towel drying](images/towel_drying.png)
 
-Optional day-to-day play surface: [`docs/LEVERS_AND_VOCAB.md`](docs/LEVERS_AND_VOCAB.md) · `niodoo_chat` presets.
-
-```bash
-cd niodoo_chat && cargo run --release --bin niodoo-chat
-```
+Control-surface levers and what each one does: [`docs/LEVERS_AND_VOCAB.md`](docs/LEVERS_AND_VOCAB.md).
 
 ---
 

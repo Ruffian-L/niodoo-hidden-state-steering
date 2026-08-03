@@ -87,16 +87,8 @@ wrong answer; on lands the right one on the corrected prompts (see `claim_card.m
 - Portability: CPU builds (`--no-default-features`) and other NVIDIA archs (`NIODOO_CUDA_ARCH`) now build and run.
   The published numbers are still pinned to the GPU `sm_121` reproduction; CPU/other-arch parity is not yet characterized.
 
-## Chat TUI / live levers (2026-07-24)
+## Live levers
 
-See `docs/LEVERS_AND_VOCAB.md`. Interactive path:
+See `docs/LEVERS_AND_VOCAB.md` for what each lever does.
 
-```bash
-cd niodoo_chat
-cargo run --release --bin niodoo-chat
-# /preset bridge_on_smoke
-# /set clamp 0.04
-# /persona shep
-```
-
-Maps to CLI arms: off = `--bridge-off`; on smoke = `--bridge-influence-smoke --bridge-influence-smoke-clamp 0.03`.
+CLI arms: off = `--bridge-off`; on smoke = `--bridge-influence-smoke --bridge-influence-smoke-clamp 0.03`.
