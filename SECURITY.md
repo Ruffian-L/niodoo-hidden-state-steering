@@ -9,16 +9,19 @@ This repo is scanned with the following tools. Commands assume you are at the re
 
 | Surface | Tool | Command | Status |
 |---|---|---|---|
-| Dependency vulnerabilities (Rust) | `cargo-audit` (RustSec) | `cd niodoo && cargo audit` | **0 vulnerabilities** |
+| Dependency vulnerabilities (Rust) | `cargo-audit` (RustSec) | `cargo audit` (workspace root) | **0 vulnerabilities** |
 | Static analysis (SAST) | Snyk Code | `snyk code test` | reviewed (see below) |
 | Malware signatures | ClamAV | `clamscan -r .` | **clean** |
 
 Notes:
 - **Snyk Open Source does not support Rust/Cargo.** `snyk test` reports "No supported files found" — that is
   expected, not a misconfiguration. Rust dependency vulnerabilities are covered by `cargo audit` instead.
-- `cargo audit` reports **0 vulnerabilities**. It also emits informational *unmaintained-crate* warnings
-  (`bincode`, `number_prefix`, `paste`, `rustls-pemfile`); these are advisories, not vulnerabilities, and do not
+- `cargo audit` reports **0 vulnerabilities**. It also emits informational warnings
+  (`bincode`, `number_prefix`, `paste` unmaintained; `lru` unsound); these do not
   fail the audit. They are tracked for future dependency updates.
+  `reqwest` 0.11 / `h2` 0.3.27 (RUSTSEC-2026-0258) and unused `rkyv` 0.7.46
+  (RUSTSEC-2026-0235) were dropped: neither crate is referenced by compiled niodoo
+  code. Model download stays in `reproduce.sh`.
 
 ## Snyk Code findings — disposition
 - **MD5 (insecure hash):** resolved. The non-cryptographic content fingerprints / prompt hashes were migrated
