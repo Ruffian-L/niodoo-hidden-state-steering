@@ -5,8 +5,7 @@
 **Built with:** Grok (xAI) · Claude (Anthropic) · ChatGPT / Codex (OpenAI) · Gemini (Google) — see [`CREDITS.md`](CREDITS.md) · [`AUTHORSHIP.md`](AUTHORSHIP.md)
 
 > A **local runtime** that steers a **frozen** language model (no weight updates).  
-> One **narrow, reproducible** correction result + the machinery behind it.  
-> **Not** a chat product, **not** a consciousness claim, **not** broad benchmark SOTA.
+> One **narrow, reproducible** correction result + the machinery behind it.
 
 **Built with Llama 3.1** — see `NOTICE.md` and `licenses/`. Weights download at run time and are **sha256-pinned**.
 
@@ -77,7 +76,7 @@ Details, hashes, arch flags: [`RUNBOOK.md`](RUNBOOK.md). Full eight-prompt table
 | Inference-time / residual-style **steering** of a frozen GGUF model | Fine-tuning or weight surgery |
 | A **local** research runtime with telemetry | Cloud API product |
 | A **hash-pinned** off-vs-on battery | “Beats Llama on everything” |
-| Honest **negative** follow-ups on the scoreboard | Consciousness / feelings claims |
+| Honest **negative** follow-ups on the scoreboard | Cherry-picked wins only |
 | Jason-led multi-AI **collaboration** (named) | Solo-genius folklore |
 
 ---
