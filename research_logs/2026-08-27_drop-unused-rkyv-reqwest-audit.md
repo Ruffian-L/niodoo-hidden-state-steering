@@ -64,7 +64,14 @@ Did not: ignore the advisories; bump axum; merge PR #3 before CI.
 Local audit is green after the prune. The README change on this branch
 is unrelated.
 
+GitHub Actions [run 13](https://github.com/Ruffian-L/niodoo-hidden-state-steering/actions/runs/33089586103)
+(`899be32`): cargo audit success, CPU build success. Hypothesis held.
+
+Merge API: `405` — “At least 1 approving review is required by
+reviewers with write access.” Self-approve is rejected (Jason is the
+PR author). Copilot review would not count.
+
 ## Next
 
-Push to `readme/drop-hire-disclaimer`. If GitHub Actions audit + CPU
-build pass, merge PR #3.
+Jason approves/merges PR #3. No further dep bump unless a new
+advisory lands.

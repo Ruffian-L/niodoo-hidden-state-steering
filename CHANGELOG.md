@@ -25,8 +25,9 @@ not merge yet.
 We think: CI audit on this PR goes green without a major-version
 migration.
 
-Next: push to `readme/drop-hire-disclaimer`, let CI re-run, merge PR #3
-if the required check passes.
+Next: GitHub Actions run 13 is green (audit + CPU). Merge is blocked
+on a required approving review — cannot self-approve this PR. Jason
+clicks merge.
 
 Agent: Grok (xAI)
 Research: `research_logs/2026-08-27_drop-unused-rkyv-reqwest-audit.md`
