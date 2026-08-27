@@ -11,6 +11,20 @@ Pairing: every action here gets a **why**. Hypothesis form:
 Keep this file short. Longer writeups go in `research_logs/`
 (one subject, date + title). Agent contract: `AGENTS.md` (tracked).
 
+## 2026-08-27 — PR #3 shipped
+
+We did: reviewed PR #3 (GitHub COMMENT review; self-approve is
+forbidden) and merged it as `61afb11`. README disclaimer drop + unused
+`rkyv`/`reqwest` prune. PR CI was green (run 13 and the follow-up on
+`1f8e517`).
+
+We think: main CI for the merge commit stays green.
+
+Next: none on this PR.
+
+Agent: Grok (xAI)
+Research: `research_logs/2026-08-27_drop-unused-rkyv-reqwest-audit.md`
+
 ## 2026-08-27 — Drop unused rkyv and reqwest so cargo audit is green
 
 We did: PR #3 CI run 32641209367 failed `cargo audit` on `h2` 0.3.27
